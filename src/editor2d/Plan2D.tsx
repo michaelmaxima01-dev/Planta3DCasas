@@ -5,7 +5,7 @@ import { type SnapResult, roundTo, snapFurnitureToWall, snapPoint } from '../geo
 import { type Vec2, add, clamp, dist, dot, mul, normalize, perp, pointInPolygon, projectOnSegment, sub } from '../geometry/vec';
 import { type WallGeom, clampOpeningOffset, computeWallGeometry } from '../geometry/walls';
 import {
-  OPENING_DEFAULTS,
+  setWallLength,
   addFurniture,
   addOpening,
   addWall,
@@ -18,10 +18,11 @@ import {
 import type { OpeningKind, SelectionKind } from '../model/types';
 import { levelBelow } from '../model/building';
 import { beginGesture, endGesture, selectLevel, selectPlan, usePlan } from '../store/planStore';
-import { isStair, stairRect } from '../model/stairs';
+import { isStair, stairFootprint, stairRect } from '../model/stairs';
+import { styleDef } from '../model/openings';
 import { roofGeometry } from '../roof/roof';
 import { useUI } from '../store/uiStore';
-import { fmtArea, fmtMeters } from '../ui/format';
+import { fmtArea, fmtMeters, fmtNumber, parseNumber } from '../ui/format';
 import { ACCENT, FurnitureSymbol, OpeningSymbol } from './symbols';
 
 type Drag =
@@ -61,6 +62,8 @@ export function Plan2D() {
   const wallThickness = useUI((s) => s.wallThickness);
   const wallHeight = useUI((s) => s.wallHeight);
   const fitToken = useUI((s) => s.fitToken);
+  const doorStyle = useUI((s) => s.doorStyle);
+  const windowStyle = useUI((s) => s.windowStyle);
 
   const svgRef = useRef<SVGSVGElement>(null);
   const [size, setSize] = useState<{ w: number; h: number } | null>(null);
@@ -69,6 +72,14 @@ export function Plan2D() {
   const [altKey, setAltKey] = useState(false);
   const [snap, setSnap] = useState<SnapResult | null>(null);
   const [chain, setChain] = useState<Vec2 | null>(null);
+  /** Canto inicial da ferramenta Cômodo (retângulo). */
+  const [roomStart, setRoomStart] = useState<Vec2 | null>(null);
+  /** Medida digitada durante o desenho (ex.: "3,5" ou "4x3"). */
+  const [typed, setTyped] = useState('');
+  const [shiftKey, setShiftKey] = useState(false);
+  /** Edição de cota: parede e posição na tela. */
+  const [dimEdit, setDimEdit] = useState<{ wallId: string; x: number; y: number; value: string } | null>(null);
+  const hoverRef = useRef<Vec2 | null>(null);
   const drag = useRef<Drag | null>(null);
   const [dragKind, setDragKind] = useState<Drag['kind'] | null>(null);
   const startDrag = (d: Drag) => {
@@ -133,15 +144,49 @@ export function Plan2D() {
   // ---------- teclado local ----------
   useEffect(() => {
     setChain(null);
+    setRoomStart(null);
+    setTyped('');
     setSnap(null);
   }, [tool]);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       setAltKey(e.altKey);
-      if (e.type === 'keydown' && (e.key === 'Escape' || e.key === 'Enter') && chain) {
-        setChain(null);
+      setShiftKey(e.shiftKey);
+      if (e.type !== 'keydown') return;
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+      const drawing = (tool === 'wall' && chain) || (tool === 'room' && roomStart);
+      if (!drawing) return;
+      // medida digitada: números, vírgula, ponto e "x" (largura x profundidade)
+      if (/^[0-9.,]$/.test(e.key) || (tool === 'room' && (e.key === 'x' || e.key === 'X' || e.key === '*' || e.key === ' '))) {
+        setTyped((t) => t + (e.key === 'X' || e.key === '*' ? 'x' : e.key));
+        e.preventDefault();
         e.stopImmediatePropagation();
+        return;
+      }
+      if (e.key === 'Backspace' && typed) {
+        setTyped((t) => t.slice(0, -1));
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.stopImmediatePropagation();
+        if (typed) commitTyped();
+        else {
+          setChain(null);
+          setRoomStart(null);
+        }
+        return;
+      }
+      if (e.key === 'Escape') {
+        e.stopImmediatePropagation();
+        if (typed) setTyped('');
+        else {
+          setChain(null);
+          setRoomStart(null);
+        }
       }
     };
     window.addEventListener('keydown', onKey, true);
@@ -150,7 +195,7 @@ export function Plan2D() {
       window.removeEventListener('keydown', onKey, true);
       window.removeEventListener('keyup', onKey, true);
     };
-  }, [chain]);
+  }, [chain, roomStart, typed, tool]);
 
   // ---------- auxiliares ----------
   const toPlan = (e: { clientX: number; clientY: number }): Vec2 => {
@@ -169,11 +214,19 @@ export function Plan2D() {
     return best;
   };
 
+  /** Dimensões do item a colocar (escadas se ajustam à altura do andar). */
+  const levelHeight = usePlan((s) => selectLevel(s).height);
+  const itemDims = (id: string) => {
+    const item = CATALOG_BY_ID[id];
+    if (isStair({ catalogId: id })) return { ...stairFootprint(id, levelHeight), height: levelHeight };
+    return { width: item.width, depth: item.depth, height: item.height };
+  };
+
   const furniturePlacement = (id: string, p: Vec2, rot: number, free: boolean) => {
     const item = CATALOG_BY_ID[id];
     const pos = { x: roundTo(p.x, 0.01), y: roundTo(p.y, 0.01) };
     if (!free && item && (item.elevation ?? 0) === 0) {
-      const ws = snapFurnitureToWall(geomList, pos, item.depth);
+      const ws = snapFurnitureToWall(geomList, pos, itemDims(id).depth);
       if (ws) return { pos: ws.pos, rotation: ws.rotation };
     }
     return { pos, rotation: rot };
@@ -202,6 +255,13 @@ export function Plan2D() {
         startDrag({ kind: 'pan', sx: e.clientX, sy: e.clientY, ox: view.ox, oy: view.oy });
         return;
       }
+      if ((hit.kind as string) === 'dim') {
+        const w = plan.walls[hit.id];
+        const r = svgRef.current!.getBoundingClientRect();
+        if (w) setDimEdit({ wallId: hit.id, x: e.clientX - r.left, y: e.clientY - r.top, value: fmtNumber(dist(plan.nodes[w.a], plan.nodes[w.b]), 2) });
+        select({ kind: 'wall', id: hit.id });
+        return;
+      }
       select(hit);
       if (hit.kind === 'room') return;
       beginGesture();
@@ -216,8 +276,20 @@ export function Plan2D() {
       return;
     }
 
+    if (tool === 'room') {
+      const sn = snapPoint(plan, p, { pxPerMeter: view.s, disabled: e.altKey, extraPoints: belowPoints });
+      if (!roomStart) {
+        setRoomStart(sn.point);
+        setTyped('');
+        return;
+      }
+      createRoomRect(roomStart, sn.point);
+      return;
+    }
+
     if (tool === 'wall') {
       const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints });
+      if (chain && e.shiftKey) sn.point = ortho(chain, sn.point);
       if (!chain) {
         setChain(sn.point);
         return;
@@ -231,6 +303,7 @@ export function Plan2D() {
         addWall(d, chain, sn.point, { thickness: wallThickness, height: wallHeight });
       });
       setChain(closesLoop ? null : sn.point);
+      setTyped('');
       return;
     }
 
@@ -239,7 +312,8 @@ export function Plan2D() {
       if (!wu) return;
       let id: string | null = null;
       update((d) => {
-        id = addOpening(d, wu.g.id, tool as OpeningKind, wu.offset);
+        const st = styleDef(tool === 'door' ? useUI.getState().doorStyle : useUI.getState().windowStyle);
+        id = addOpening(d, wu.g.id, tool as OpeningKind, wu.offset, { style: st.key, width: st.width, height: st.height, sill: st.sill });
       });
       if (id) select({ kind: 'opening', id });
       return;
@@ -248,11 +322,23 @@ export function Plan2D() {
     if (tool === 'furniture' && catalogId) {
       const pl = furniturePlacement(catalogId, p, 0, e.altKey);
       let id: string | null = null;
+      const dims = itemDims(catalogId);
       update((d) => {
-        id = addFurniture(d, catalogId, pl.pos, pl.rotation);
+        id = addFurniture(d, catalogId, pl.pos, pl.rotation, dims);
       });
       setTool('select');
       if (id) select({ kind: 'furniture', id });
+      if (isStair({ catalogId })) {
+        const st = usePlan.getState();
+        const lv = selectLevel(st);
+        const idx = st.building.levels.findIndex((l) => l.id === lv.id);
+        const next = st.building.levels[idx + 1];
+        useUI.getState().set({
+          toast: next
+            ? `Escada colocada: ela sobe ${fmtMeters(lv.height)} até o ${next.name}, e o vão no piso do ${next.name} foi aberto automaticamente.`
+            : `Escada colocada no ${lv.name}, que é o último andar. Crie um andar acima (+ Andar) e o vão no piso dele será aberto automaticamente.`,
+        });
+      }
     }
   };
 
@@ -314,8 +400,58 @@ export function Plan2D() {
       });
       return;
     }
-    if (tool === 'wall') setSnap(snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints }));
+    hoverRef.current = p;
+    if (tool === 'wall') {
+      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints });
+      if (chain && e.shiftKey) sn.point = ortho(chain, sn.point);
+      setSnap(sn);
+    } else if (tool === 'room') setSnap(snapPoint(plan, p, { pxPerMeter: view.s, disabled: e.altKey, extraPoints: belowPoints }));
   };
+
+  /** Trava a direção em horizontal/vertical (Shift). */
+  function ortho(a: Vec2, b: Vec2): Vec2 {
+    return Math.abs(b.x - a.x) >= Math.abs(b.y - a.y) ? { x: roundTo(b.x, 0.05), y: a.y } : { x: a.x, y: roundTo(b.y, 0.05) };
+  }
+
+  function createRoomRect(a: Vec2, b: Vec2) {
+    if (Math.abs(b.x - a.x) < 0.3 || Math.abs(b.y - a.y) < 0.3) return;
+    const c = [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }];
+    update((d) => {
+      for (let i = 0; i < 4; i++) addWall(d, c[i], c[(i + 1) % 4], { thickness: wallThickness, height: wallHeight });
+    });
+    setRoomStart(null);
+    setTyped('');
+  }
+
+  /** Aplica a medida digitada: comprimento da parede ou "largura x profundidade" do cômodo. */
+  function commitTyped() {
+    const num = (t: string) => parseFloat(t.replace(',', '.'));
+    const cur = snap?.point ?? hoverRef.current;
+    if (tool === 'wall' && chain) {
+      const L = num(typed);
+      if (!(L > 0.05)) return setTyped('');
+      let dir = cur ? sub(cur, chain) : { x: 1, y: 0 };
+      if (Math.hypot(dir.x, dir.y) < 1e-6) dir = { x: 1, y: 0 };
+      if (shiftKey) dir = Math.abs(dir.x) >= Math.abs(dir.y) ? { x: Math.sign(dir.x) || 1, y: 0 } : { x: 0, y: Math.sign(dir.y) || 1 };
+      const end = add(chain, mul(normalize(dir), L));
+      const endR = { x: Math.round(end.x * 1e4) / 1e4, y: Math.round(end.y * 1e4) / 1e4 };
+      update((d) => {
+        addWall(d, chain, endR, { thickness: wallThickness, height: wallHeight });
+      });
+      setChain(endR);
+      setTyped('');
+      return;
+    }
+    if (tool === 'room' && roomStart) {
+      const m = /^\s*([0-9]+(?:[.,][0-9]+)?)\s*[x ]\s*([0-9]+(?:[.,][0-9]+)?)\s*$/.exec(typed);
+      if (!m) return setTyped('');
+      const w = num(m[1]);
+      const h = num(m[2]);
+      const sx = cur && cur.x < roomStart.x ? -1 : 1;
+      const sy = cur && cur.y < roomStart.y ? -1 : 1;
+      createRoomRect(roomStart, { x: roomStart.x + sx * w, y: roomStart.y + sy * h });
+    }
+  }
 
   const onPointerUp = () => {
     const d = drag.current;
@@ -365,13 +501,13 @@ export function Plan2D() {
       ? (() => {
           const wu = wallUnder(hover);
           if (!wu) return null;
-          const def = OPENING_DEFAULTS[tool];
+          const def = styleDef(tool === 'door' ? doorStyle : windowStyle);
           if (wu.g.length < def.width + 0.2) return null;
           return (
             <OpeningSymbol
               g={wu.g}
               ghost
-              op={{ kind: tool, width: def.width, flip: false, side: false, offset: clampOpeningOffset(wu.g.length, def.width, wu.offset) }}
+              op={{ kind: tool, style: def.key, width: def.width, flip: false, side: false, offset: clampOpeningOffset(wu.g.length, def.width, wu.offset) }}
             />
           );
         })()
@@ -380,21 +516,20 @@ export function Plan2D() {
   const furniturePreview =
     hover && tool === 'furniture' && catalogId
       ? (() => {
-          const item = CATALOG_BY_ID[catalogId];
+          const dims = itemDims(catalogId);
           const pl = furniturePlacement(catalogId, hover, 0, altKey);
-          return (
-            <FurnitureSymbol
-              ghost
-              f={{ catalogId, x: pl.pos.x, y: pl.pos.y, rotation: pl.rotation, width: item.width, depth: item.depth, height: item.height }}
-            />
-          );
+          return <FurnitureSymbol ghost f={{ catalogId, x: pl.pos.x, y: pl.pos.y, rotation: pl.rotation, ...dims }} />;
         })()
       : null;
 
   const cursorClass =
     tool === 'select' ? (dragKind === 'pan' ? 'grabbing' : 'default') : 'crosshair';
 
+  const drawingNow = (tool === 'wall' && chain) || (tool === 'room' && roomStart);
+  const emptyLevel = Object.keys(plan.walls).length === 0;
+
   return (
+    <>
     <svg
       ref={svgRef}
       className={`plan2d cursor-${cursorClass}`}
@@ -402,7 +537,9 @@ export function Plan2D() {
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUp}
       onPointerLeave={() => setHover(null)}
-      onDoubleClick={() => tool === 'wall' && setChain(null)}
+      onDoubleClick={() => {
+        if (tool === 'wall') setChain(null);
+      }}
       onContextMenu={(e) => e.preventDefault()}
     >
       <g transform={`translate(${view.ox} ${view.oy}) scale(${s})`}>
@@ -539,7 +676,10 @@ export function Plan2D() {
                     textAnchor="middle"
                     dominantBaseline="middle"
                     fill="#4f5964"
-                    className="dim-text"
+                    className={`dim-text ${tool === 'select' ? 'dim-editable' : ''}`}
+                    pointerEvents={tool === 'select' ? 'auto' : 'none'}
+                    data-kind="dim"
+                    data-id={g.id}
                   >
                     {fmtMeters(g.length)}
                   </text>
@@ -581,6 +721,35 @@ export function Plan2D() {
         {openingPreview}
         {furniturePreview}
 
+        {/* pré-visualização do cômodo retangular */}
+        {tool === 'room' && snap && (
+          <g pointerEvents="none">
+            {roomStart &&
+              (() => {
+                const b = snap.point;
+                const x0 = Math.min(roomStart.x, b.x);
+                const y0 = Math.min(roomStart.y, b.y);
+                const w = Math.abs(b.x - roomStart.x);
+                const h = Math.abs(b.y - roomStart.y);
+                return (
+                  <>
+                    <rect x={x0} y={y0} width={w} height={h} fill={ACCENT} fillOpacity={0.12} stroke={ACCENT} strokeWidth={wallThickness * s} strokeOpacity={0.5} />
+                    <text x={x0 + w / 2} y={y0 - px(10)} fontSize={px(12)} textAnchor="middle" fill={ACCENT} fontWeight={700} className="dim-text">
+                      {fmtMeters(w)}
+                    </text>
+                    <text transform={`translate(${x0 - px(10)} ${y0 + h / 2}) rotate(-90)`} fontSize={px(12)} textAnchor="middle" fill={ACCENT} fontWeight={700} className="dim-text">
+                      {fmtMeters(h)}
+                    </text>
+                    <text x={x0 + w / 2} y={y0 + h / 2} fontSize={px(12)} textAnchor="middle" fill={ACCENT} className="dim-text">
+                      {fmtArea(w * h)}
+                    </text>
+                  </>
+                );
+              })()}
+            <circle cx={snap.point.x} cy={snap.point.y} r={px(5)} fill="none" stroke={snap.nodeId ? '#2f9e44' : snap.wallId ? '#e8590c' : ACCENT} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          </g>
+        )}
+
         {/* pré-visualização da parede */}
         {tool === 'wall' && snap && (
           <g pointerEvents="none">
@@ -596,9 +765,9 @@ export function Plan2D() {
                   <>
                     <polygon points={pts(poly)} fill={ACCENT} fillOpacity={0.45} stroke={ACCENT} strokeWidth={1} vectorEffect="non-scaling-stroke" />
                     <g transform={`translate(${mid.x} ${mid.y}) rotate(${ang})`}>
-                      <rect x={px(-30)} y={px(-22)} width={px(60)} height={px(16)} rx={px(3)} fill="#ffffff" stroke={ACCENT} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                      <rect x={px(-46)} y={px(-22)} width={px(92)} height={px(16)} rx={px(3)} fill="#ffffff" stroke={ACCENT} strokeWidth={1} vectorEffect="non-scaling-stroke" />
                       <text y={px(-14)} fontSize={px(11)} textAnchor="middle" dominantBaseline="middle" fill={ACCENT} fontWeight={600}>
-                        {fmtMeters(L)}
+                        {fmtMeters(L)} · {Math.round(((-Math.atan2(snap.point.y - chain.y, snap.point.x - chain.x) * 180) / Math.PI + 360) % 360)}°
                       </text>
                     </g>
                   </>
@@ -625,6 +794,103 @@ export function Plan2D() {
       </g>
       {size && <ScaleBar s={s} h={size.h} />}
     </svg>
+
+    {/* caixa de medida digitada (estilo "VCB" do SketchUp) */}
+    {(tool === 'wall' || tool === 'room') && (
+      <output className={`vcb ${typed ? 'typing' : ''}`}>
+        <b>{tool === 'wall' ? 'Comprimento' : 'Largura x profundidade'}</b>
+        <span className="vcb-value">{typed || (drawingNow ? '—' : '')}</span>
+        <small>
+          {!drawingNow
+            ? tool === 'wall'
+              ? 'Clique para começar a parede'
+              : 'Clique no primeiro canto do cômodo'
+            : tool === 'wall'
+              ? 'Digite a medida (ex.: 3,5) e Enter • Shift trava 0°/90° • Esc termina'
+              : 'Clique no canto oposto ou digite 4x3 e Enter'}
+        </small>
+      </output>
+    )}
+
+    {/* edição de cota */}
+    {dimEdit && (
+      <label className="dim-edit" style={{ left: dimEdit.x, top: dimEdit.y }}>
+        <span>Comprimento</span>
+        <input
+          autoFocus
+          value={dimEdit.value}
+          onChange={(e) => setDimEdit({ ...dimEdit, value: e.target.value })}
+          onBlur={() => setDimEdit(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') {
+              const v = parseNumber(dimEdit.value);
+              if (v > 0.05) update((d) => setWallLength(d, dimEdit.wallId, v));
+              setDimEdit(null);
+            }
+            if (e.key === 'Escape') setDimEdit(null);
+          }}
+        />
+        <em>m</em>
+      </label>
+    )}
+
+    {emptyLevel && !drawingNow && tool !== 'wall' && tool !== 'room' && <StartCard />}
+    </>
+  );
+}
+
+/** Cartão para começar um projeto (ou andar) em branco. */
+function StartCard() {
+  const update = usePlan((s) => s.update);
+  const below = usePlan((s) => levelBelow(s.building, s.levelId)?.plan);
+  const setTool = useUI((s) => s.setTool);
+  const thickness = useUI((s) => s.wallThickness);
+  const height = useUI((s) => s.wallHeight);
+  const bb = below ? planBounds(below) : null;
+  const [w, setW] = useState(bb ? fmtNumber(bb.maxX - bb.minX) : '10');
+  const [h, setH] = useState(bb ? fmtNumber(bb.maxY - bb.minY) : '8');
+  const create = () => {
+    const W = parseNumber(w);
+    const H = parseNumber(h);
+    if (!(W > 0.5 && H > 0.5)) return;
+    const x0 = bb?.minX ?? 0;
+    const y0 = bb?.minY ?? 0;
+    const c = [
+      { x: x0, y: y0 },
+      { x: x0 + W, y: y0 },
+      { x: x0 + W, y: y0 + H },
+      { x: x0, y: y0 + H },
+    ];
+    update((d) => {
+      for (let i = 0; i < 4; i++) addWall(d, c[i], c[(i + 1) % 4], { thickness: Math.max(thickness, 0.2), height });
+    });
+    useUI.getState().requestFit();
+  };
+  return (
+    <section className="start-card">
+      <h3>{below ? 'Andar em branco' : 'Projeto em branco'}</h3>
+      <p>Comece pelo contorno da casa e depois divida os cômodos.</p>
+      <div className="start-dims">
+        <label>
+          Largura
+          <input value={w} onChange={(e) => setW(e.target.value)} />
+          <em>m</em>
+        </label>
+        <span>×</span>
+        <label>
+          Profundidade
+          <input value={h} onChange={(e) => setH(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
+          <em>m</em>
+        </label>
+      </div>
+      <button className="primary-btn" onClick={create}>
+        Criar contorno {w} × {h} m
+      </button>
+      <div className="row">
+        <button onClick={() => setTool('room')}>▭ Desenhar cômodo (C)</button>
+        <button onClick={() => setTool('wall')}>▬ Desenhar paredes (W)</button>
+      </div>
+    </section>
   );
 }
 

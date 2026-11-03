@@ -6,6 +6,7 @@ import { jsPDF } from 'jspdf';
 import type { Vec2 } from '../geometry/vec';
 import { DEFAULT_META } from '../model/finishes';
 import type { Level, Plan, ProjectMeta } from '../model/types';
+import { styleName } from '../model/openings';
 import { type Drawing, type Prim, arcPoints, boundsOf, buildDrawing, fmtDim, transformInsert } from './drawing';
 import { type FurnitureRow, type ProjectSchedule, buildSchedule, furnitureName } from './schedule';
 
@@ -417,7 +418,7 @@ function tablesSheet(doc: Doc, sch: ProjectSchedule) {
     ['Cód.', 'Tipo', 'Larg. m', 'Alt. m', 'Peitoril m', 'Ambientes'],
     sch.openings.map((x) => [
       x.tag,
-      x.op.kind === 'door' ? 'Porta' : 'Janela',
+      styleName(x.op),
       fmtDim(x.op.width),
       fmtDim(x.op.height),
       x.op.kind === 'door' ? '-' : fmtDim(x.op.sill),
@@ -494,7 +495,7 @@ function roomSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, roomId: string, l
         y,
         [w * 0.14, w * 0.22, w * 0.34, w * 0.3],
         ['Cód.', 'Tipo', 'Larg. x Alt. m', 'Peitoril m'],
-        info.openings.map((o) => [o.tag, o.op.kind === 'door' ? 'Porta' : 'Janela', `${fmtDim(o.op.width)} x ${fmtDim(o.op.height)}`, o.op.kind === 'door' ? '-' : fmtDim(o.op.sill)]),
+        info.openings.map((o) => [o.tag, styleName(o.op), `${fmtDim(o.op.width)} x ${fmtDim(o.op.height)}`, o.op.kind === 'door' ? '-' : fmtDim(o.op.sill)]),
         { align: ['left', 'left', 'right', 'right'], rowH: 5.6, onPage: more },
       )
     : (doc.text('Nenhuma.', x, y + 2, 2.2, { color: MUTED }), y + 6);

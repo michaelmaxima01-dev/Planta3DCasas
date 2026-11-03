@@ -2,6 +2,7 @@ import { CATALOG_BY_ID } from '../catalog/catalog';
 import type { WallGeom } from '../geometry/walls';
 import { openingCenter } from '../geometry/walls';
 import type { FurnitureItem, Opening } from '../model/types';
+import { styleOf } from '../model/openings';
 
 export const ACCENT = '#2f7cf6';
 const deg = (r: number) => (r * 180) / Math.PI;
@@ -13,12 +14,13 @@ export function OpeningSymbol({
   selected = false,
   ghost = false,
 }: {
-  op: Pick<Opening, 'kind' | 'offset' | 'width' | 'flip' | 'side'> & { id?: string };
+  op: Pick<Opening, 'kind' | 'offset' | 'width' | 'flip' | 'side' | 'style'> & { id?: string };
   g: WallGeom;
   selected?: boolean;
   ghost?: boolean;
 }) {
   const c = openingCenter(g, op as Opening);
+  const style = styleOf(op);
   const t = g.thickness;
   const w = op.width;
   const stroke = selected || ghost ? ACCENT : '#3a4047';
@@ -39,14 +41,55 @@ export function OpeningSymbol({
       opacity={ghost ? 0.7 : 1}
     >
       <rect x={-w / 2} y={-t / 2 - 0.004} width={w} height={t + 0.008} fill="#ffffff" stroke={stroke} strokeWidth={sw} vectorEffect="non-scaling-stroke" />
-      {op.kind === 'door' ? (
+      {op.kind === 'door' && style === 'giro' && (
         <>
           <line x1={hingeX} y1={s * (t / 2)} x2={hingeX} y2={s * (t / 2 + w)} stroke={stroke} strokeWidth={sw + 0.5} vectorEffect="non-scaling-stroke" />
           <polyline points={arc.join(' ')} fill="none" stroke={stroke} strokeWidth={0.8} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
           {/* área de clique ao redor do arco */}
           <rect x={-w / 2} y={s > 0 ? t / 2 : -t / 2 - w} width={w} height={w} fill="rgba(0,0,0,0)" />
         </>
-      ) : (
+      )}
+      {op.kind === 'door' && (style === 'dupla' || style === 'pivotante') && (
+        <>
+          {(style === 'dupla' ? [-1, 1] : [op.flip ? 1 : -1]).map((side) => {
+            const r = style === 'dupla' ? w / 2 : w * 0.75;
+            const hx = style === 'dupla' ? side * (w / 2) : side * (w / 2) + -side * (w * 0.25);
+            const pts2: string[] = [];
+            for (let k = 0; k <= 12; k++) {
+              const a = (k / 12) * (Math.PI / 2);
+              pts2.push(`${hx - side * r * Math.cos(a)},${s * (t / 2 + r * Math.sin(a))}`);
+            }
+            return (
+              <g key={side}>
+                <line x1={hx} y1={s * (t / 2)} x2={hx} y2={s * (t / 2 + r)} stroke={stroke} strokeWidth={sw + 0.5} vectorEffect="non-scaling-stroke" />
+                <polyline points={pts2.join(' ')} fill="none" stroke={stroke} strokeWidth={0.8} strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+              </g>
+            );
+          })}
+          <rect x={-w / 2} y={s > 0 ? t / 2 : -t / 2 - w / 2} width={w} height={w / 2} fill="rgba(0,0,0,0)" />
+        </>
+      )}
+      {op.kind === 'door' && style === 'correr' && (
+        <>
+          <line x1={-w / 2} y1={-t / 6} x2={0.05} y2={-t / 6} stroke={stroke} strokeWidth={sw + 1} vectorEffect="non-scaling-stroke" />
+          <line x1={-0.05} y1={t / 6} x2={w / 2} y2={t / 6} stroke={stroke} strokeWidth={sw + 1} vectorEffect="non-scaling-stroke" />
+          <line x1={-w / 4} y1={-t / 2 - 0.12} x2={w / 4} y2={-t / 2 - 0.12} stroke={stroke} strokeWidth={0.8} vectorEffect="non-scaling-stroke" markerEnd="" />
+        </>
+      )}
+      {op.kind === 'window' && (style === 'basculante' || style === 'maxim_ar') && (
+        <>
+          <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke={stroke} strokeWidth={sw} vectorEffect="non-scaling-stroke" />
+          <polyline points={`${-w / 2},${t / 2} 0,${-t / 2} ${w / 2},${t / 2}`} fill="none" stroke={stroke} strokeWidth={0.6} vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      {op.kind === 'window' && style === 'porta_janela' && (
+        <>
+          <line x1={-w / 2} y1={-t / 6} x2={0.05} y2={-t / 6} stroke={stroke} strokeWidth={sw + 0.5} vectorEffect="non-scaling-stroke" />
+          <line x1={-0.05} y1={t / 6} x2={w / 2} y2={t / 6} stroke={stroke} strokeWidth={sw + 0.5} vectorEffect="non-scaling-stroke" />
+          <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke={stroke} strokeWidth={0.5} vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      {op.kind === 'window' && style === 'janela_correr' && (
         <>
           <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke={stroke} strokeWidth={sw} vectorEffect="non-scaling-stroke" />
           <line x1={-w / 2} y1={-t / 5} x2={w / 2} y2={-t / 5} stroke={stroke} strokeWidth={0.6} vectorEffect="non-scaling-stroke" />
@@ -90,10 +133,11 @@ export function FurnitureSymbol({
           strokeWidth: 0.6,
           vectorEffect: 'non-scaling-stroke' as const,
         };
+        const tr = p.ry ? `rotate(${deg(p.ry)} ${p.x} ${p.z})` : undefined;
         return p.shape === 'box' ? (
-          <rect key={i} x={p.x - p.sx / 2} y={p.z - p.sz / 2} width={p.sx} height={p.sz} {...common} />
+          <rect key={i} x={p.x - p.sx / 2} y={p.z - p.sz / 2} width={p.sx} height={p.sz} transform={tr} {...common} />
         ) : (
-          <ellipse key={i} cx={p.x} cy={p.z} rx={p.sx / 2} ry={p.sz / 2} {...common} />
+          <ellipse key={i} cx={p.x} cy={p.z} rx={p.sx / 2} ry={p.sz / 2} transform={tr} {...common} />
         );
       })}
       {(selected || ghost) && (

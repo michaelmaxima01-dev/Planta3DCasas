@@ -5,6 +5,8 @@ import { dist } from '../geometry/vec';
 import { clampOpeningOffset } from '../geometry/walls';
 import { deleteSelection, duplicateFurniture, moveNode, setRoomLabel, setWallLength } from '../model/ops';
 import { FLOOR_FINISHES } from '../model/finishes';
+import { OPENING_STYLES, styleDef, styleName, styleOf } from '../model/openings';
+import type { OpeningStyle } from '../model/types';
 import type { Plan } from '../model/types';
 import { selectPlan, usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
@@ -68,11 +70,23 @@ export function PropertiesPanel() {
           });
         return (
           <>
-            <h3>{op.kind === 'door' ? 'Porta' : 'Janela'}</h3>
-            <div className="segmented">
-              <button className={op.kind === 'door' ? 'active' : ''} onClick={() => set({ kind: 'door', sill: 0, height: 2.1 })}>Porta</button>
-              <button className={op.kind === 'window' ? 'active' : ''} onClick={() => set({ kind: 'window', sill: 1.0, height: 1.2 })}>Janela</button>
-            </div>
+            <h3>{styleName(op)}</h3>
+            <label className="select-field">
+              <span>Tipo</span>
+              <select
+                value={styleOf(op)}
+                onChange={(e) => {
+                  const st = styleDef(e.target.value as OpeningStyle);
+                  set({ kind: st.kind, style: st.key, width: st.width, height: st.height, sill: st.sill });
+                }}
+              >
+                {OPENING_STYLES.map((o) => (
+                  <option key={o.key} value={o.key}>
+                    {o.name}
+                  </option>
+                ))}
+              </select>
+            </label>
             <NumberField label="Largura" value={op.width} min={0.3} max={Math.max(0.3, L - 0.2)} onCommit={(v) => set({ width: v })} />
             <NumberField label="Altura" value={op.height} min={0.2} max={w.height} onCommit={(v) => set({ height: v })} />
             {op.kind === 'window' && <NumberField label="Peitoril" value={op.sill} min={0} max={w.height - 0.2} onCommit={(v) => set({ sill: v })} />}

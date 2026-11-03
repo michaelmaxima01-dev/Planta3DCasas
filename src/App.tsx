@@ -18,7 +18,8 @@ import { AddLevelDialog, FloorSwitcher, Toast } from './ui/Levels';
 const HINTS: Record<Tool, string> = {
   select:
     'Clique para selecionar • arraste para mover • Delete exclui • R gira o móvel • arraste o fundo (ou botão direito) para mover a vista • roda do mouse = zoom',
-  wall: 'Clique para começar e clique em cada canto • duplo clique, Enter ou Esc termina • encaixa em cantos (verde), paredes (laranja), 45° e grade de 5 cm • Alt desliga o encaixe',
+  wall: 'Clique para começar e em cada canto • DIGITE a medida (ex.: 3,5) + Enter para parede exata • Shift trava 0°/90° • Esc termina • encaixa em cantos (verde), paredes (laranja), 45° e grade • Alt desliga o encaixe',
+  room: 'Clique em um canto e no canto oposto (ou digite 4x3 + Enter) para criar um cômodo retangular com 4 paredes • Esc cancela',
   door: 'Clique sobre uma parede para inserir a porta • Esc volta para Selecionar',
   window: 'Clique sobre uma parede para inserir a janela • Esc volta para Selecionar',
   furniture: 'Clique na planta para posicionar • perto da parede ele encosta sozinho (Alt solta livre) • Esc cancela',
@@ -30,7 +31,7 @@ const STRUCT_HINTS: Record<'select' | 'pillar' | 'beam', string> = {
   beam: 'Clique em dois pilares para criar a viga entre eles • Esc volta',
 };
 
-const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', d: 'door', j: 'window' };
+const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', c: 'room', d: 'door', j: 'window' };
 
 export default function App() {
   const viewMode = useUI((s) => s.viewMode);

@@ -20,7 +20,13 @@ export function stairDims(height: number) {
   return { steps, rise, tread, depth: Math.round(steps * tread * 100) / 100 };
 }
 
-export const isStair = (f: FurnitureItem) => f.catalogId === STAIR_ID;
+export const isStair = (f: Pick<FurnitureItem, 'catalogId'>) => !!CATALOG_BY_ID[f.catalogId]?.stair;
+
+/** Dimensões de uma escada do catálogo para a altura piso a piso. */
+export function stairFootprint(catalogId: string, height: number): { width: number; depth: number } {
+  const item = CATALOG_BY_ID[catalogId];
+  return item?.footprint ? item.footprint(height) : { width: item?.width ?? 0.9, depth: item?.depth ?? 3 };
+}
 
 /** Contorno da escada na planta (retângulo girado). */
 export function stairRect(f: FurnitureItem): Vec2[] {
@@ -128,7 +134,9 @@ export function syncStairHeights(b: Building) {
     for (const f of Object.values(l.plan.furniture)) {
       if (isStair(f) && Math.abs(f.height - l.height) > 1e-6) {
         f.height = l.height;
-        f.depth = Math.max(f.depth, stairDims(l.height).depth * 0.8);
+        const fp = stairFootprint(f.catalogId, l.height);
+        f.width = fp.width;
+        f.depth = fp.depth;
       }
     }
   }

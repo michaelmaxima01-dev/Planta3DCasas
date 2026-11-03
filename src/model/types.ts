@@ -19,12 +19,15 @@ export interface Wall {
 }
 
 export type OpeningKind = 'door' | 'window';
+export type OpeningStyle = 'giro' | 'correr' | 'dupla' | 'pivotante' | 'janela_correr' | 'basculante' | 'maxim_ar' | 'porta_janela';
 
 /** Porta ou janela hospedada em uma parede. */
 export interface Opening {
   id: string;
   wallId: string;
   kind: OpeningKind;
+  /** Tipo da esquadria (porta de giro, de correr, basculante…). */
+  style?: OpeningStyle;
   /** Distância do nó `a` da parede até o centro da abertura, ao longo da linha central. */
   offset: number;
   width: number;

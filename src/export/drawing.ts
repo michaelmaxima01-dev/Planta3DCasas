@@ -136,7 +136,10 @@ function furnitureBlock(name: string, f: { catalogId: string; width: number; dep
               const a = (k / 24) * Math.PI * 2;
               return { x: p.x + (p.sx / 2) * Math.cos(a), y: p.z + (p.sz / 2) * Math.sin(a) };
             });
-      return { t: 'poly', layer: 'MOVEIS', pts, closed: true, fill: p.material === 'glass' ? undefined : p.color, stroke: '#555b61', weight: 0.13 } as Prim;
+      const c = Math.cos(p.ry ?? 0);
+      const s2 = Math.sin(p.ry ?? 0);
+      const rot = p.ry ? pts.map((q) => ({ x: p.x + (q.x - p.x) * c - (q.y - p.z) * s2, y: p.z + (q.x - p.x) * s2 + (q.y - p.z) * c })) : pts;
+      return { t: 'poly', layer: 'MOVEIS', pts: rot, closed: true, fill: p.material === 'glass' ? undefined : p.color, stroke: '#555b61', weight: 0.13 } as Prim;
     });
   return { name, prims };
 }

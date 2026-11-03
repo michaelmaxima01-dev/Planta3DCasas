@@ -8,6 +8,7 @@ import { detectRooms } from '../geometry/rooms';
 import type { Vec2 } from '../geometry/vec';
 import { type WallGeom, computeWallGeometry, openingCenter, wallPrisms } from '../geometry/walls';
 import type { Opening, Plan } from '../model/types';
+import { styleOf } from '../model/openings';
 import { type P3, ROOF_COLOR, roofGeometry } from '../roof/roof';
 import {
   doorLeafMaterial,
@@ -47,24 +48,63 @@ function openingGroup(op: Opening, g: WallGeom): THREE.Group {
   const c = openingCenter(g, op);
   grp.position.set(c.x, 0, c.y);
   grp.rotation.y = -Math.atan2(g.dir.y, g.dir.x);
+  const mats = { frame: frameMaterial, leaf: doorLeafMaterial, handle: handleMaterial, glass: glassMaterial };
+  for (const p of openingParts(op, g)) grp.add(box(p.size, p.pos, mats[p.mat], p.mat !== 'glass'));
+  return grp;
+}
+
+export interface OpeningPart {
+  size: [number, number, number];
+  pos: [number, number, number];
+  mat: 'frame' | 'leaf' | 'handle' | 'glass';
+}
+
+/** Peças de uma porta/janela (batentes, folhas, vidros), conforme o tipo. Coordenadas locais da abertura. */
+export function openingParts(op: Opening, g: WallGeom): OpeningPart[] {
   const t = g.thickness + 0.02;
   const w = op.width;
   const f = 0.05;
   const base = op.sill;
   const h = Math.min(op.height, g.height - op.sill);
-  grp.add(box([f, h, t], [-w / 2 + f / 2, base + h / 2, 0], frameMaterial));
-  grp.add(box([f, h, t], [w / 2 - f / 2, base + h / 2, 0], frameMaterial));
-  grp.add(box([w, f, t], [0, base + h - f / 2, 0], frameMaterial));
+  const style = styleOf(op);
+  const P = (size: OpeningPart['size'], pos: OpeningPart['pos'], mat: OpeningPart['mat']): OpeningPart => ({ size, pos, mat });
+  const out: OpeningPart[] = [
+    P([f, h, t], [-w / 2 + f / 2, base + h / 2, 0], 'frame'),
+    P([f, h, t], [w / 2 - f / 2, base + h / 2, 0], 'frame'),
+    P([w, f, t], [0, base + h - f / 2, 0], 'frame'),
+  ];
+  const inner = w - 2 * f;
+  const lh = h - f;
   if (op.kind === 'door') {
-    grp.add(box([w - 2 * f, h - f, 0.04], [0, (h - f) / 2, 0], doorLeafMaterial));
-    grp.add(box([0.12, 0.025, 0.1], [(op.flip ? -1 : 1) * (w / 2 - f - 0.1), 1.0, 0], handleMaterial));
-  } else {
-    grp.add(box([w, f, t], [0, base + f / 2, 0], frameMaterial));
-    grp.add(box([f * 0.6, h - 2 * f, 0.05], [0, base + h / 2, 0], frameMaterial));
-    grp.add(box([w - 2 * f, h - 2 * f, 0.01], [0, base + h / 2, 0], glassMaterial, false));
-    grp.add(box([w + 0.08, 0.025, t + 0.06], [0, base - 0.0125, 0], frameMaterial));
+    if (style === 'dupla') {
+      for (const sd of [-1, 1]) {
+        out.push(P([inner / 2 - 0.006, lh, 0.04], [(sd * inner) / 4, lh / 2, 0], 'leaf'));
+        out.push(P([0.025, 0.12, 0.1], [sd * 0.06, 1.0, 0], 'handle'));
+      }
+    } else if (style === 'correr') {
+      for (const sd of [-1, 1]) {
+        out.push(P([inner * 0.55, lh, 0.035], [(-sd * inner * 0.225), lh / 2, sd * 0.025], 'leaf'));
+        out.push(P([0.025, 0.25, 0.05], [-sd * (inner * 0.225 - inner * 0.25), 1.0, sd * 0.05], 'handle'));
+      }
+    } else if (style === 'pivotante') {
+      out.push(P([inner, lh, 0.05], [0, lh / 2, 0], 'leaf'));
+      out.push(P([0.035, 0.9, 0.12], [(op.flip ? -1 : 1) * (inner / 2 - 0.15), 1.05, 0], 'handle'));
+    } else {
+      out.push(P([inner, lh, 0.04], [0, lh / 2, 0], 'leaf'));
+      out.push(P([0.12, 0.025, 0.1], [(op.flip ? -1 : 1) * (w / 2 - f - 0.1), 1.0, 0], 'handle'));
+    }
+    return out;
   }
-  return grp;
+  if (base > 0.01) {
+    out.push(P([w, f, t], [0, base + f / 2, 0], 'frame'));
+    out.push(P([w + 0.08, 0.025, t + 0.06], [0, base - 0.0125, 0], 'frame'));
+  }
+  const gy = base + h / 2;
+  const gh = h - (base > 0.01 ? 2 * f : f);
+  if (style === 'janela_correr' || style === 'porta_janela') out.push(P([f * 0.6, gh, 0.05], [0, gy, 0], 'frame'));
+  if (style === 'basculante') out.push(P([inner, 0.03, 0.04], [0, gy, 0], 'frame'));
+  out.push(P([inner, gh, 0.01], [0, gy, 0], 'glass'));
+  return out;
 }
 
 export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boolean } = {}): THREE.Group {
@@ -126,6 +166,7 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boo
     for (const p of item.parts(f.width, f.depth, f.height)) {
       const m = new THREE.Mesh(p.shape === 'box' ? unitBox : p.shape === 'cyl' ? unitCylinder : unitSphere, partMaterial(p.color, p.material, false));
       m.position.set(p.x, p.y, p.z);
+      m.rotation.y = -(p.ry ?? 0);
       m.scale.set(p.sx, p.sy, p.sz);
       m.castShadow = p.material !== 'glass';
       m.receiveShadow = true;

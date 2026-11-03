@@ -1,7 +1,7 @@
 import { create } from 'zustand';
-import type { Selection } from '../model/types';
+import type { OpeningStyle, Selection } from '../model/types';
 
-export type Tool = 'select' | 'wall' | 'door' | 'window' | 'furniture';
+export type Tool = 'select' | 'wall' | 'room' | 'door' | 'window' | 'furniture';
 export type StructTool = 'select' | 'pillar' | 'beam';
 export type ViewMode = '2d' | 'split' | '3d';
 
@@ -30,6 +30,9 @@ interface UIState {
   structTool: StructTool;
   /** Janela de adicionar andar aberta. */
   addingLevel: boolean;
+  /** Tipo padrão de porta e de janela ao inserir. */
+  doorStyle: OpeningStyle;
+  windowStyle: OpeningStyle;
   /** Aviso temporário. */
   toast: string | null;
   /** Incrementado para pedir que as vistas reenquadrem a planta. */
@@ -40,7 +43,7 @@ interface UIState {
   pickCatalog: (id: string) => void;
   setWallDefaults: (p: { thickness?: number; height?: number }) => void;
   toggleCutWalls: () => void;
-  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'toast'>>) => void;
+  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'toast' | 'doorStyle' | 'windowStyle'>>) => void;
   requestFit: () => void;
 }
 
@@ -60,6 +63,8 @@ export const useUI = create<UIState>()((set) => ({
   foundationView: false,
   structTool: 'select',
   addingLevel: false,
+  doorStyle: 'giro',
+  windowStyle: 'janela_correr',
   toast: null,
   fitToken: 0,
   setTool: (tool) => set((s) => ({ tool, catalogId: tool === 'furniture' ? s.catalogId : null })),

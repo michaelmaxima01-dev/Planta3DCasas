@@ -15,7 +15,7 @@ import { detectRooms } from '../geometry/rooms';
 import { type Vec2, centroid, cross, dist, pointInPolygon, signedArea, sub } from '../geometry/vec';
 import type { Building, Level, Plan } from '../model/types';
 import { collinearOverlap, onSegment } from './geometry';
-import { stairRect } from '../model/stairs';
+import { isStair, stairRect } from '../model/stairs';
 import { type RoofResult, analyzeRoof } from '../roof/roof';
 import { BALDRAME, type Beam, type Pillar, ROOFS, type RoofKind, type StructureSettings } from './types';
 
@@ -409,7 +409,7 @@ export function analyzeStructure(building: Building): StructureResult {
         { label: 'Contrapiso e revestimento', value: s.finishLoad },
       ];
       // vão de escada (escada deste pavimento chega no pavimento de cima atravessando esta laje)
-      const stairs = above ? Object.values(plan.furniture).filter((f) => f.catalogId === 'stair' && pointInPolygon(f, r.polygon)) : [];
+      const stairs = above ? Object.values(plan.furniture).filter((f) => isStair(f) && pointInPolygon(f, r.polygon)) : [];
       const holeArea = Math.min(area * 0.6, stairs.reduce((acc, f) => acc + f.width * f.depth, 0));
       const effArea = area - holeArea;
       if (holeArea > 0) notes.push(`Abertura para escada: ${r2(holeArea)} m² (laje calculada com ${r2(effArea)} m²; bordas do vão precisam de reforço).`);

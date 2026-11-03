@@ -3,12 +3,14 @@ import { CATALOG, CATEGORIES } from '../catalog/catalog';
 import { type Tool, useUI } from '../store/uiStore';
 import { NumberField } from './Fields';
 import { LevelBar } from './LevelBar';
+import { OPENING_STYLES } from '../model/openings';
 import { RoofPanel } from './RoofPanel';
 import { fmtNumber } from './format';
 
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
   { id: 'select', label: 'Selecionar', key: 'V', icon: '➤' },
   { id: 'wall', label: 'Parede', key: 'W', icon: '▬' },
+  { id: 'room', label: 'Cômodo (retângulo)', key: 'C', icon: '▭' },
   { id: 'door', label: 'Porta', key: 'D', icon: '◜' },
   { id: 'window', label: 'Janela', key: 'J', icon: '▭' },
 ];
@@ -21,6 +23,9 @@ export function Sidebar() {
   const wallThickness = useUI((s) => s.wallThickness);
   const wallHeight = useUI((s) => s.wallHeight);
   const setWallDefaults = useUI((s) => s.setWallDefaults);
+  const doorStyle = useUI((s) => s.doorStyle);
+  const windowStyle = useUI((s) => s.windowStyle);
+  const setUI = useUI((s) => s.set);
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<string | null>(CATEGORIES[0]);
 
@@ -42,7 +47,27 @@ export function Sidebar() {
         </div>
       </section>
 
-      {tool === 'wall' && (
+      {(tool === 'door' || tool === 'window') && (
+        <section>
+          <h3>{tool === 'door' ? 'Tipo de porta' : 'Tipo de janela'}</h3>
+          <div className="tools">
+            {OPENING_STYLES.filter((o) => o.kind === tool).map((o) => (
+              <button
+                key={o.key}
+                className={(tool === 'door' ? doorStyle : windowStyle) === o.key ? 'active' : ''}
+                onClick={() => setUI(tool === 'door' ? { doorStyle: o.key } : { windowStyle: o.key })}
+              >
+                {o.name}
+                <kbd>
+                  {fmtNumber(o.width)}×{fmtNumber(o.height)}
+                </kbd>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {(tool === 'wall' || tool === 'room') && (
         <section>
           <h3>Nova parede</h3>
           <NumberField label="Espessura" value={wallThickness} min={0.05} max={1} onCommit={(v) => setWallDefaults({ thickness: v })} />

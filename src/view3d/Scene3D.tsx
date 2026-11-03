@@ -10,7 +10,7 @@ import { planBounds } from '../model/ops';
 import type { Building, FurnitureItem, Opening, Plan, Selection } from '../model/types';
 import { floorHoles, stairRect } from '../model/stairs';
 import { type P3, ROOF_COLOR, roofGeometry } from '../roof/roof';
-import { prismGeometry } from './buildScene';
+import { openingParts, prismGeometry } from './buildScene';
 import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import {
@@ -294,34 +294,16 @@ function Box({ size, position, material }: { size: [number, number, number]; pos
 
 function Opening3D({ op, g, selected, select }: { op: Opening; g: WallGeom; selected: boolean; select: Select }) {
   const c = openingCenter(g, op);
-  const t = g.thickness + 0.02;
-  const w = op.width;
-  const f = 0.05;
   const frame = selected ? openingSelectedMaterial : frameMaterial;
   const rot = -Math.atan2(g.dir.y, g.dir.x);
-  const base = op.sill;
-  const h = Math.min(op.height, g.height - op.sill);
   return (
     <group position={[c.x, 0, c.y]} rotation-y={rot} onClick={clickHandler(select, { kind: 'opening', id: op.id })}>
-      <Box size={[f, h, t]} position={[-w / 2 + f / 2, base + h / 2, 0]} material={frame} />
-      <Box size={[f, h, t]} position={[w / 2 - f / 2, base + h / 2, 0]} material={frame} />
-      <Box size={[w, f, t]} position={[0, base + h - f / 2, 0]} material={frame} />
-      {op.kind === 'door' ? (
-        <>
-          <Box size={[w - 2 * f, h - f, 0.04]} position={[0, (h - f) / 2, 0]} material={doorLeafMaterial} />
-          <Box
-            size={[0.12, 0.025, 0.1]}
-            position={[(op.flip ? -1 : 1) * (w / 2 - f - 0.1), 1.0, 0]}
-            material={handleMaterial}
-          />
-        </>
-      ) : (
-        <>
-          <Box size={[w, f, t]} position={[0, base + f / 2, 0]} material={frame} />
-          <Box size={[f * 0.6, h - 2 * f, 0.05]} position={[0, base + h / 2, 0]} material={frame} />
-          <mesh geometry={unitBox} material={glassMaterial} scale={[w - 2 * f, h - 2 * f, 0.01]} position={[0, base + h / 2, 0]} />
-          <Box size={[w + 0.08, 0.025, t + 0.06]} position={[0, base - 0.0125, 0]} material={frame} />
-        </>
+      {openingParts(op, g).map((p, i) =>
+        p.mat === 'glass' ? (
+          <mesh key={i} geometry={unitBox} material={glassMaterial} scale={p.size} position={p.pos} />
+        ) : (
+          <Box key={i} size={p.size} position={p.pos} material={p.mat === 'frame' ? frame : p.mat === 'leaf' ? doorLeafMaterial : handleMaterial} />
+        ),
       )}
     </group>
   );
@@ -339,6 +321,7 @@ function Furniture3D({ f, selected, select }: { f: FurnitureItem; selected: bool
           geometry={p.shape === 'box' ? unitBox : p.shape === 'cyl' ? unitCylinder : unitSphere}
           material={partMaterial(p.color, p.material, selected)}
           position={[p.x, p.y, p.z]}
+          rotation-y={-(p.ry ?? 0)}
           scale={[p.sx, p.sy, p.sz]}
           castShadow={p.material !== 'glass'}
           receiveShadow

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { type NewLevelMode, addLevelOnTop } from '../model/building';
 import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
+import { isStair } from '../model/stairs';
 
 /** Troca de andar (mantém a seleção limpa e sai da vista de fundação). */
 export function useGoToLevel() {
@@ -79,7 +80,7 @@ export function AddLevelDialog() {
     return () => window.removeEventListener('keydown', onKey);
   }, [open, setUI]);
   if (!open) return null;
-  const hasStair = Object.values(top.plan.furniture).some((f) => f.catalogId === 'stair');
+  const hasStair = Object.values(top.plan.furniture).some(isStair);
 
   const create = () => {
     let id = '';
