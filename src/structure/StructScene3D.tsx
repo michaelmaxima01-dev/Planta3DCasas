@@ -180,9 +180,24 @@ function RoofTimber({ building }: { building: Building }) {
           />
         );
       })}
+      {t.members.map(([a, b], i) => (
+        <Member key={`m${i}`} a={a} b={b} />
+      ))}
       {t.posts.map((p, i) => (
         <mesh key={`p${i}`} geometry={unitBox} material={timberMat} position={[p.x, (p.z0 + p.z1) / 2, p.y]} scale={[0.075, Math.max(0.05, p.z1 - p.z0), 0.075]} castShadow />
       ))}
     </group>
   );
+}
+
+/** Peça de madeira entre dois pontos 3D (planta x, y e altura z). */
+function Member({ a, b }: { a: [number, number, number]; b: [number, number, number] }) {
+  const { pos, quat, len } = useMemo(() => {
+    const A = new THREE.Vector3(a[0], a[2], a[1]);
+    const B = new THREE.Vector3(b[0], b[2], b[1]);
+    const d = B.clone().sub(A);
+    const q = new THREE.Quaternion().setFromUnitVectors(new THREE.Vector3(1, 0, 0), d.clone().normalize());
+    return { pos: A.clone().add(B).multiplyScalar(0.5), quat: q, len: d.length() };
+  }, [a, b]);
+  return <mesh geometry={unitBox} material={timberMat} position={pos} quaternion={quat} scale={[len, 0.12, 0.06]} castShadow />;
 }

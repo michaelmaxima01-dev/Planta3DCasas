@@ -25,3 +25,25 @@ describe('quantitativo de materiais', () => {
     expect(get('Brita')).toBeGreaterThan(5);
   });
 });
+
+describe('quantitativo por etapa', () => {
+  it('separa fundação, estrutura, alvenaria e telhado e a soma bate com o total', () => {
+    const b = buildExampleBuilding();
+    b.structure = generateStructure(b);
+    autoSize(b);
+    const q = buildQuantities(b, analyzeStructure(b));
+    expect(q.stages.map((s) => s.name)).toEqual(['Fundação', 'Estrutura', 'Alvenaria', 'Telhado']);
+    const get = (rows: { item: string; qty: number }[], p: string) => rows.find((x) => x.item.startsWith(p))?.qty ?? 0;
+    const [F, E, A, T] = q.stages;
+    if (process.env.SHOW) for (const st of q.stages) for (const x of st.summary) console.log(st.name, '|', x.item, '|', fmtQty(x));
+    expect(get(F.summary, 'Cimento')).toBeGreaterThan(10);
+    expect(get(F.summary, 'Aço')).toBeGreaterThan(100);
+    expect(get(F.summary, 'Escavação')).toBeGreaterThan(10);
+    expect(get(T.summary, 'Madeira serrada')).toBeGreaterThan(0.5);
+    expect(get(T.summary, 'Telhas')).toBeGreaterThan(500);
+    const cementStages = get(F.summary, 'Cimento') + get(E.summary, 'Cimento') + get(A.summary, 'Cimento');
+    expect(Math.abs(cementStages - get(q.summary, 'Cimento'))).toBeLessThanOrEqual(3); // arredondamento de sacos
+    const steelStages = get(F.summary, 'Aço') + get(E.summary, 'Aço');
+    expect(Math.abs(steelStages - get(q.summary, 'Aço')) / steelStages).toBeLessThan(0.001);
+  });
+});

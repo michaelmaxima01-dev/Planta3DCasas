@@ -15,6 +15,31 @@ pnpm test       # testes automáticos da geometria e das operações
 pnpm build      # build de produção
 ```
 
+## Desenho preciso
+
+| Como | O que faz |
+|---|---|
+| **Projeto em branco** (botão Novo) | Cartão de início: digite largura × profundidade e clique em *Criar contorno* |
+| **Cômodo (C)** | Clique num canto e no canto oposto, ou digite `4x3` + Enter: cria as 4 paredes |
+| **Parede (W)** + medida digitada | Depois do primeiro clique, digite `3,5` + Enter: parede de 3,50 m exatos na direção do mouse; continue digitando para a próxima |
+| **Shift** | Trava a parede em horizontal/vertical |
+| **Clique na cota** (ferramenta Selecionar) | Abre um campo para digitar o novo comprimento; o cômodo estica mantendo os encontros em T |
+| Caixa no canto da planta | Mostra o que está sendo digitado e as dicas da ferramenta |
+
+## Escadas e vãos
+
+Categoria **Escadas** do catálogo: reta, em L (com patamar), em U (dois lances) e caracol. Ao colocar,
+a escada é dimensionada pela altura do andar (fórmula de Blondel) e o **vão é aberto automaticamente
+no piso do andar de cima** (marcado com X na planta, guarda-corpo no 3D, área descontada da laje),
+para qualquer andar: térreo → 1º, 1º → 2º e assim por diante. Se não houver andar acima, o sistema avisa.
+
+## Esquadrias e elementos
+
+- Portas: de giro, de correr, dupla, pivotante. Janelas: de correr, basculante, maxim-ar, porta-janela.
+  Escolha o tipo na barra lateral ao usar Porta (D) ou Janela (J), ou troque no painel de propriedades.
+- Catálogo com 58 itens: sala, quarto, cozinha, banheiro, escritório, **lavanderia**, **área externa
+  e garagem** (piscina, churrasqueira, árvores, carro…), iluminação e escadas.
+
 ## Roteiro de teste manual
 
 Ao abrir, aparece um sobrado de exemplo (10 × 8 m, térreo + 1º andar, 9 cômodos).
@@ -67,8 +92,15 @@ Os dados do carimbo (projeto, cliente, endereço, responsável, CAU/CREA) são p
 
 ## Telhado
 
-No painel lateral: formato (duas águas, quatro águas, uma água ou laje plana), telha (cerâmica,
-fibrocimento, metálica), inclinação (com alerta abaixo do mínimo da telha), beiral e direção da cumeeira.
+No painel lateral: formato (duas águas, quatro águas, uma água ou laje plana), **telha** (cerâmica
+portuguesa, romana, colonial, francesa, concreto, fibrocimento, metálica, sanduíche, shingle), inclinação
+(com alerta abaixo do mínimo da telha), beiral, direção da cumeeira e **sustentação**:
+- *Sobre a laje (pontaletes)*: o telhado descarrega na laje de cobertura;
+- *Tesouras de madeira (forro)*: sem laje no último andar; tesouras a cada ~3 m descarregam nas vigas de
+  respaldo das paredes de beiral (a carga entra nessas vigas no cálculo).
+Terças, caibros e banzos são verificados e a seção de madeira é escolhida automaticamente.
+Quantitativos: telhas, cumeeiras, ripas, caibros, terças, pontaletes ou tesouras, calhas, condutores,
+rufos, pregos, manta e madeira em m³.
 O telhado aparece no 3D e a planta de cobertura (beiral, cumeeira, espigões e caimento) no último andar.
 Na aba Estrutura: madeiramento (terças sobre pontaletes na laje), verificação da terça, quantidade de
 telhas, ripas, caibros, terças e pontaletes, e o peso do telhado entra nas cargas.
@@ -96,7 +128,8 @@ Pré-dimensionamento de concreto armado com alvenaria de vedação, da fundaçã
    (o eixo se move em todos os pavimentos); ferramentas **Pilar** (P) e **Viga** (G) para lançamento manual.
 5. Parâmetros editáveis: solo e tensão admissível, tipo de fundação, profundidade, concreto (C20 a C40),
    tipo de laje, cobertura, sobrecarga, revestimento, peso da alvenaria e vão máximo entre pilares.
-6. **Quantitativo de materiais** (painel e relatório): concreto por peça (sapatas, arranques, baldrames,
+6. **Quantitativo de materiais por etapa** (abas Fundação / Estrutura / Alvenaria / Telhado / Total no
+   painel; na vista Fundação abre direto na aba Fundação; uma folha por etapa no relatório): concreto por peça (sapatas, arranques, baldrames,
    pilares, vigas, lajes), cimento em sacos, areia, brita, cal, água, aço por bitola, fôrmas, vigotas e
    lajotas, blocos, argamassas, contrapiso, escavação e telhado, com perdas incluídas.
 7. **Relatório estrutural (PDF)**: premissas, pendências, plantas de fôrmas por pavimento, locação da

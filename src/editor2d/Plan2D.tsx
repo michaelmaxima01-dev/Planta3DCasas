@@ -256,6 +256,7 @@ export function Plan2D() {
         return;
       }
       if ((hit.kind as string) === 'dim') {
+        e.preventDefault(); // evita que o clique tire o foco do campo de edição
         const w = plan.walls[hit.id];
         const r = svgRef.current!.getBoundingClientRect();
         if (w) setDimEdit({ wallId: hit.id, x: e.clientX - r.left, y: e.clientY - r.top, value: fmtNumber(dist(plan.nodes[w.a], plan.nodes[w.b]), 2) });
@@ -733,7 +734,7 @@ export function Plan2D() {
                 const h = Math.abs(b.y - roomStart.y);
                 return (
                   <>
-                    <rect x={x0} y={y0} width={w} height={h} fill={ACCENT} fillOpacity={0.12} stroke={ACCENT} strokeWidth={wallThickness * s} strokeOpacity={0.5} />
+                    <rect x={x0} y={y0} width={w} height={h} fill={ACCENT} fillOpacity={0.12} stroke={ACCENT} strokeWidth={wallThickness} strokeOpacity={0.5} />
                     <text x={x0 + w / 2} y={y0 - px(10)} fontSize={px(12)} textAnchor="middle" fill={ACCENT} fontWeight={700} className="dim-text">
                       {fmtMeters(w)}
                     </text>

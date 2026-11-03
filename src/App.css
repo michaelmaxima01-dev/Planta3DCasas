@@ -914,3 +914,27 @@ table.calc tr.total td {
 .start-card .row button {
   flex: 1;
 }
+.mat-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+.mat-tabs button {
+  padding: 3px 8px;
+  font-size: 11px;
+}
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  padding: 4px 0;
+  text-align: left;
+  font-size: 12px;
+}
+table.calc.detail td {
+  font-size: 11px;
+}
+table.calc.detail small {
+  color: var(--muted);
+}

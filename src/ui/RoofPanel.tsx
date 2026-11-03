@@ -1,4 +1,4 @@
-import { MIN_SLOPE, ROOF_TYPES, type RoofModel, type RoofType, defaultRoof } from '../roof/roof';
+import { MIN_SLOPE, ROOF_SUPPORTS, ROOF_TYPES, type RoofModel, type RoofSupport, type RoofType, defaultRoof } from '../roof/roof';
 import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { ROOFS, type RoofKind } from '../structure/types';
@@ -56,7 +56,7 @@ export function RoofPanel() {
             >
               {ROOFS.filter((x) => x.key !== 'laje').map((x) => (
                 <option key={x.key} value={x.key}>
-                  {x.name}
+                  {x.name} (mín. {x.minSlope}%)
                 </option>
               ))}
             </select>
@@ -67,6 +67,17 @@ export function RoofPanel() {
           <label className="check-row">
             <input type="checkbox" checked={roof.rotate} onChange={(e) => set({ rotate: e.target.checked })} /> Girar a cumeeira 90°
           </label>
+          <label className="select-field">
+            <span>Sustentação</span>
+            <select value={roof.support ?? 'laje'} onChange={(e) => set({ support: e.target.value as RoofSupport })}>
+              {ROOF_SUPPORTS.map((x) => (
+                <option key={x.key} value={x.key}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <p className="hint small">{ROOF_SUPPORTS.find((x) => x.key === (roof.support ?? 'laje'))?.text}</p>
         </>
       )}
       <label className="check-row">

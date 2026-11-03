@@ -224,6 +224,8 @@ export function analyzeStructure(building: Building): StructureResult {
   const fyd = s.fyk / 1.15 / 10; // kN/cm²
   const levels = building.levels;
   const roofMaterial: RoofKind = (building.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : s.roof;
+  const roofResult = analyzeRoof(building, roofMaterial, ROOFS.find((x) => x.key === roofMaterial)!.load, s.roofLiveLoad);
+  const trussRoof = roofResult?.support === 'tesoura' && roofResult.type !== 'plano';
   const issues: Issue[] = [];
   const allPillars = Object.values(building.structure.pillars);
   const allBeams = Object.values(building.structure.beams);
@@ -340,6 +342,23 @@ export function analyzeStructure(building: Building): StructureResult {
       else arr.push({ label, value });
     };
 
+    // telhado em tesouras: a carga vai para as vigas de respaldo das paredes de beiral
+    if (isTop && trussRoof && roofResult) {
+      const Wb = roofResult.geometry.walls;
+      const onSide = (side: string, x: { a: Vec2; b: Vec2 }) => {
+        const tol = 0.35;
+        if (side === 'minY') return Math.abs(x.a.y - Wb.minY) < tol && Math.abs(x.b.y - Wb.minY) < tol;
+        if (side === 'maxY') return Math.abs(x.a.y - Wb.maxY) < tol && Math.abs(x.b.y - Wb.maxY) < tol;
+        if (side === 'minX') return Math.abs(x.a.x - Wb.minX) < tol && Math.abs(x.b.x - Wb.minX) < tol;
+        return Math.abs(x.a.x - Wb.maxX) < tol && Math.abs(x.b.x - Wb.maxX) < tol;
+      };
+      for (const el of roofResult.eaveLoads) {
+        const hits = levelBeams.filter((x) => onSide(el.side, x));
+        if (hits.length === 0) issues.push({ status: 'fail', text: `Telhado em tesouras: não há viga de respaldo no lado ${el.side} do ${level.name} para apoiar as tesouras.` });
+        for (const x of hits) addBeamLoad(x.v.id, 'Telhado (tesouras)', el.q);
+      }
+    }
+
     // paredes do pavimento de cima: sobre vigas ou sobre a laje?
     const extraOnSlab = new Map<number, { W: number; label: string }[]>();
     if (above) {
@@ -372,6 +391,7 @@ export function analyzeStructure(building: Building): StructureResult {
 
     // lajes no topo deste pavimento
     rooms.forEach((r, ri) => {
+      if (isTop && trussRoof) return; // último andar com forro: sem laje de cobertura
       const xs = r.polygon.map((p) => p.x);
       const ys = r.polygon.map((p) => p.y);
       const dx = Math.max(...xs) - Math.min(...xs);
@@ -617,9 +637,8 @@ export function analyzeStructure(building: Building): StructureResult {
   for (const x of footings) push(x.status, 'footing', x.id, BALDRAME, `Fundação ${x.code}`, x.notes.filter((n) => !n.startsWith('Tensão no solo') || x.status === 'fail'));
   if (allPillars.length === 0) issues.push({ status: 'warn', text: 'Nenhum pilar lançado: use "Gerar estrutura".' });
 
-  const roofResult = analyzeRoof(building, roofMaterial, ROOFS.find((x) => x.key === roofMaterial)!.load, s.roofLiveLoad);
   if (roofResult && roofResult.status !== 'ok') {
-    for (const n of roofResult.notes.slice(0, roofResult.notes.length - 2)) issues.push({ status: roofResult.status, text: `Telhado: ${n}` });
+    for (const n of roofResult.notes.slice(0, roofResult.notes.length - 2)) if (!/descarreg/i.test(n)) issues.push({ status: roofResult.status, text: `Telhado: ${n}` });
   }
 
   const order = { fail: 0, warn: 1, ok: 2 };

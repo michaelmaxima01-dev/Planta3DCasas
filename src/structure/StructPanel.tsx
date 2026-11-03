@@ -92,6 +92,7 @@ export function StructPanel() {
   const selection = useUI((s) => s.selection);
   const select = useUI((s) => s.select);
   const setUI = useUI((s) => s.set);
+  const foundationView = useUI((s) => s.foundationView);
   const r = useMemo(() => cachedAnalysis(building), [building]);
   const quantities = useMemo(() => buildQuantities(building, r), [building, r]);
   const levelName = (id: string) => (id === BALDRAME ? 'Baldrame' : building.levels.find((l) => l.id === id)?.name ?? '');
@@ -261,27 +262,18 @@ export function StructPanel() {
           <h4>Telhado</h4>
           <Row k="Tipo / inclinação" v={`${ROOF_TYPES.find((t) => t.key === r.roof!.type)?.name} / ${building.roof?.slope ?? 0}%`} />
           <Row k="Área real" v={`${f(r.roof.geometry.realArea, 1)} m²`} />
-          {r.roof.purlin && <Row k="Terça 6×16" v={r.roof.purlin.sigma <= r.roof.purlin.fd ? 'atende' : 'não atende'} />}
+          {r.roof.checks.map((c) => (
+            <Row key={c.name} k={`${c.name} ${c.section}`} v={c.ok ? 'atende' : 'não atende'} />
+          ))}
+          {r.roof.truss && <Row k="Tesouras" v={`${r.roof.truss.count} un a cada ${f(r.roof.truss.spacing)} m`} />}
+          <Row k="Madeira" v={`${f(r.roof.woodVolume)} m³`} />
           {r.roof.elements.slice(0, 2).map((e) => (
             <Row key={e.name} k={e.name} v={e.quantity} />
           ))}
         </>
       )}
 
-      <details className="materials" open>
-        <summary>Quantitativo de materiais</summary>
-        <table className="calc">
-          <tbody>
-            {quantities.summary.map((x) => (
-              <tr key={x.item}>
-                <td>{x.item}</td>
-                <td>{fmtQty(x)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-        <p className="hint small">Inclui perdas. Detalhamento por peça no relatório estrutural.</p>
-      </details>
+      <MaterialsBox quantities={quantities} initial={foundationView ? 'fundacao' : 'total'} />
 
       <h4>Responsável técnico</h4>
       <MetaInput label="Engenheiro civil" field="engineer" />
@@ -295,5 +287,57 @@ export function StructPanel() {
         engenheiro responsável no termo de responsabilidade do relatório. A capacidade do solo deve vir de sondagem SPT.
       </p>
     </aside>
+  );
+}
+
+/** Quantitativo com abas por etapa da obra. */
+function MaterialsBox({ quantities, initial }: { quantities: ReturnType<typeof buildQuantities>; initial: string }) {
+  const [tab, setTab] = useState(initial);
+  useEffect(() => setTab(initial), [initial]);
+  const stage = quantities.stages.find((s) => s.key === tab);
+  const rows = stage ? stage.summary : quantities.summary;
+  const [detail, setDetail] = useState(false);
+  return (
+    <section className="materials">
+      <h4>Quantitativo de materiais</h4>
+      <div className="mat-tabs">
+        {[...quantities.stages.map((s) => ({ key: s.key as string, name: s.name })), { key: 'total', name: 'Total' }].map((t) => (
+          <button key={t.key} className={tab === t.key ? 'active' : ''} onClick={() => setTab(t.key)}>
+            {t.name}
+          </button>
+        ))}
+      </div>
+      <table className="calc">
+        <tbody>
+          {rows.map((x, i) => (
+            <tr key={i}>
+              <td>{x.item}</td>
+              <td>{fmtQty(x)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {stage && (
+        <button className="link-btn" onClick={() => setDetail(!detail)}>
+          {detail ? '▾' : '▸'} Detalhamento da etapa ({stage.rows.length} itens)
+        </button>
+      )}
+      {stage && detail && (
+        <table className="calc detail">
+          <tbody>
+            {stage.rows.map((x, i) => (
+              <tr key={i}>
+                <td>
+                  {x.item}
+                  {x.note ? <small> · {x.note}</small> : null}
+                </td>
+                <td>{fmtQty(x)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+      <p className="hint small">Inclui perdas (concreto 5%, aço 10%, argamassa 10%, blocos 5%). Concreto virado em obra; se usinado, desconte cimento, areia e brita do concreto.</p>
+    </section>
   );
 }

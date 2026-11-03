@@ -53,3 +53,44 @@ describe('novo andar', () => {
     expect(holes[0].depth).toBeCloseTo(stairDims(2.95).depth, 6);
   });
 });
+
+describe('telhado em tesouras', () => {
+  it('sem laje no último andar e toda a carga do telhado chega à fundação', async () => {
+    const { generateStructure } = await import('../structure/generate');
+    const { analyzeStructure, wallLoadPerMeter } = await import('../structure/analyze');
+    const { dist } = await import('../geometry/vec');
+    const b = buildExampleBuilding();
+    b.roof = { type: 'duas_aguas', slope: 35, overhang: 0.6, rotate: false, support: 'tesoura' };
+    b.structure = generateStructure(b);
+    const r = analyzeStructure(b);
+    const top = b.levels[b.levels.length - 1];
+    expect(r.slabs.filter((x) => x.levelId === top.id)).toHaveLength(0);
+    expect(r.roof!.truss!.count).toBeGreaterThan(3);
+    expect(r.beams.some((v) => v.loads.some((l) => l.label === 'Telhado (tesouras)'))).toBe(true);
+    // conservação: lajes + paredes + vigas + pilares + telhado = carga na fundação
+    let expected = r.slabs.reduce((acc, x) => acc + x.total, 0);
+    for (const l of b.levels) for (const w of Object.values(l.plan.walls)) expected += wallLoadPerMeter(b.structure.settings, l.plan, w.id) * dist(l.plan.nodes[w.a], l.plan.nodes[w.b]);
+    for (const v of r.beams) expected += v.loads[0].value * v.L;
+    for (const p of r.pillars) expected += p.loads.find((x) => x.label === 'Peso próprio')!.value;
+    const roofBeams = r.beams.reduce((acc, v) => acc + (v.loads.find((l) => l.label === 'Telhado (tesouras)')?.value ?? 0) * v.L, 0);
+    expected += roofBeams;
+    expect(Math.abs(r.totals.weight - expected) / expected).toBeLessThan(0.01);
+    // a carga distribuída nas vigas cobre (quase) todo o peso do telhado
+    const roofTotal = (r.roof!.load + b.structure.settings.roofLiveLoad) * r.roof!.geometry.projectedArea;
+    expect(roofBeams / roofTotal).toBeGreaterThan(0.8);
+    expect(roofBeams / roofTotal).toBeLessThan(1.2);
+  });
+
+  it('tipos de telha: mínimos e quantitativos por família', () => {
+    const b = buildExampleBuilding();
+    b.roof = { type: 'duas_aguas', slope: 12, overhang: 0.5, rotate: false };
+    expect(analyzeRoof(b, 'fibrocimento', 0.4, 0.5)!.status).not.toBe('fail');
+    expect(analyzeRoof(b, 'ceramica_colonial', 1.0, 0.5)!.status).toBe('fail');
+    const sh = analyzeRoof(b, 'shingle', 0.55, 0.5)!;
+    expect(sh.elements.some((e) => e.name.startsWith('Chapas OSB'))).toBe(true);
+    b.roof.slope = 35;
+    const ce = analyzeRoof(b, 'ceramica', 0.9, 0.5)!;
+    expect(ce.woodVolume).toBeGreaterThan(0.5);
+    expect(ce.elements.find((e) => e.name.startsWith('Calhas'))!.qty).toBeGreaterThan(10);
+  });
+});

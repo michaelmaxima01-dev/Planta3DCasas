@@ -10,7 +10,7 @@ import { Doc, type Paper, pickScale } from '../export/pdf';
 import { DEFAULT_META } from '../model/finishes';
 import type { Building, ProjectMeta } from '../model/types';
 import type { Status, StructureResult } from './analyze';
-import { ROOF_TYPES } from '../roof/roof';
+import { ROOF_SUPPORTS, ROOF_TYPES } from '../roof/roof';
 import { buildQuantities, fmtQty } from './quantities';
 import { BALDRAME, ROOFS, SOILS } from './types';
 
@@ -185,43 +185,63 @@ export function appendStructuralSheets(doc: Doc, b: Building, r: StructureResult
     a = doc.area;
     const rf = r.roof;
     const g = rf.geometry;
+    const half = (a.w - 10) / 2;
     y = doc.heading(`Telhado - ${ROOF_TYPES.find((t) => t.key === rf.type)?.name ?? ''}`, a.x, a.y + 2);
     const info: [string, string][] = [
-      ['Cobertura', ROOFS.find((x) => x.key === s.roof)?.name ?? ''],
+      ['Telha', rf.tile],
+      ['Sustentação', ROOF_SUPPORTS.find((x) => x.key === rf.support)?.name ?? ''],
       ['Inclinação', `${b.roof?.slope ?? 0}% (${f1((g.angle * 180) / Math.PI)}°)`],
       ['Beiral', `${f2(b.roof?.overhang ?? 0)} m`],
       ['Área em projeção / real', `${f2(g.projectedArea)} m² / ${f2(g.realArea)} m²`],
-      ['Altura da cumeeira sobre a laje', `${f2(g.ridgeHeight)} m`],
-      ['Peso sobre a laje de cobertura', `${f2(rf.load)} kN/m² (${f0(rf.weight)} kN)`],
+      ['Altura da cumeeira', `${f2(g.ridgeHeight)} m`],
+      ['Peso da cobertura', `${f2(rf.load)} kN/m² (${f0(rf.weight)} kN)`],
+      ['Madeira do madeiramento', `${f2(rf.woodVolume)} m³`],
     ];
-    if (rf.purlin) {
-      const pl = rf.purlin;
-      info.push(['Terça 6×16 (vão 2,0 m entre pontaletes)', `tensão ${f1(pl.sigma)} MPa ≤ ${f1(pl.fd)} MPa; flecha ${f1(pl.deflection)} mm ≤ ${f0(pl.limit)} mm`]);
+    if (rf.truss) {
+      info.push(['Tesouras', `${rf.truss.count} un, vão ${f2(rf.truss.span)} m, a cada ${f2(rf.truss.spacing)} m`]);
+      for (const el of rf.eaveLoads) info.push([`Carga na viga de respaldo (${el.side})`, `${f2(el.q)} kN/m em ${f2(el.length)} m`]);
     }
-    const half = (a.w - 10) / 2;
-    doc.table(a.x, y, [half * 0.45, half * 0.55], ['Item', 'Valor'], info, { rowH: 6.2 });
-    let yy = doc.heading('Madeiramento e telhas', a.x + half + 10, a.y + 2, 3.4);
-    yy = doc.table(a.x + half + 10, yy, [half * 0.4, half * 0.2, half * 0.2, half * 0.2], ['Elemento', 'Seção', 'Espaçamento', 'Quantidade'], rf.elements.map((e) => [e.name, e.section, e.spacing, e.quantity]));
-    rf.notes.forEach((n, k) => doc.text(`• ${n}`, a.x + half + 10, yy + 6 + k * 5, 2, { color: '#495057', maxWidth: half }));
-  }
-
-  // ---------- 6. quantitativo de materiais ----------
-  {
-    const q = buildQuantities(b, r);
-    doc.newSheet('Quantitativo de materiais');
-    a = doc.area;
-    const half = (a.w - 10) / 2;
-    y = doc.heading('Quantitativo de materiais', a.x, a.y + 2);
+    y = doc.table(a.x, y, [half * 0.45, half * 0.55], ['Item', 'Valor'], info, { rowH: 6 });
+    y += 6;
+    y = doc.heading('Verificação das peças de madeira (C30)', a.x, y, 3.2);
     doc.table(
       a.x,
       y,
-      [half * 0.24, half * 0.52, half * 0.24],
-      ['Grupo', 'Item', 'Quantidade'],
-      q.rows.map((x) => [x.group, x.note && !Number.isNaN(x.qty) ? `${x.item} (${x.note})` : x.item, fmtQty(x)]),
-      { align: ['left', 'left', 'right'], rowH: 5.4, onPage: more('Quantitativo (cont.)') },
+      [half * 0.28, half * 0.16, half * 0.12, half * 0.16, half * 0.16, half * 0.12],
+      ['Peça', 'Seção', 'Vão m', 'Tensão MPa', 'Flecha mm', 'Situação'],
+      rf.checks.map((c) => [c.name, c.section, f2(c.span), `${f1(c.sigma)} / ${f1(c.fd)}`, `${f1(c.deflection)} / ${f0(c.limit)}`, c.ok ? 'Atende' : 'Não atende']),
+      { align: ['left', 'left', 'right', 'right', 'right', 'left'] },
     );
-    let yy = doc.heading('Resumo para compra', a.x + half + 10, a.y + 2, 3.6);
-    yy = doc.table(a.x + half + 10, yy, [half * 0.72, half * 0.28], ['Material', 'Quantidade'], q.summary.map((x) => [x.item, fmtQty(x)]), { align: ['left', 'right'], rowH: 6.2 });
+    let yy = doc.heading('Madeiramento, telhas e acessórios', a.x + half + 10, a.y + 2, 3.4);
+    yy = doc.table(a.x + half + 10, yy, [half * 0.42, half * 0.2, half * 0.2, half * 0.18], ['Elemento', 'Seção', 'Espaçamento', 'Quantidade'], rf.elements.map((e) => [e.name, e.section, e.spacing, e.quantity]), { rowH: 5.6, onPage: more('Telhado (cont.)') });
+    rf.notes.forEach((n, k) => doc.text(`• ${n}`, a.x + half + 10, yy + 6 + k * 5, 2, { color: '#495057', maxWidth: half }));
+  }
+
+  // ---------- 6. quantitativo de materiais por etapa ----------
+  {
+    const q = buildQuantities(b, r);
+    for (const st of q.stages) {
+      if (st.rows.length === 0 && st.summary.length === 0) continue;
+      doc.newSheet(`Materiais - ${st.name}`);
+      a = doc.area;
+      const half = (a.w - 10) / 2;
+      y = doc.heading(`Quantitativo - ${st.name}`, a.x, a.y + 2);
+      doc.table(
+        a.x,
+        y,
+        [half * 0.72, half * 0.28],
+        ['Item', 'Quantidade'],
+        st.rows.map((x) => [x.note && !Number.isNaN(x.qty) ? `${x.item} (${x.note})` : x.item, fmtQty(x)]),
+        { align: ['left', 'right'], rowH: 5.4, onPage: more(`Materiais - ${st.name} (cont.)`) },
+      );
+      let yy = doc.heading(`Materiais para compra - ${st.name}`, a.x + half + 10, a.y + 2, 3.4);
+      yy = doc.table(a.x + half + 10, yy, [half * 0.72, half * 0.28], ['Material', 'Quantidade'], st.summary.map((x) => [x.item, fmtQty(x)]), { align: ['left', 'right'], rowH: 6 });
+    }
+    doc.newSheet('Materiais - resumo da obra');
+    a = doc.area;
+    const half = (a.w - 10) / 2;
+    y = doc.heading('Resumo de materiais da obra', a.x, a.y + 2);
+    y = doc.table(a.x, y, [half * 0.72, half * 0.28], ['Material', 'Quantidade'], q.summary.map((x) => [x.item, fmtQty(x)]), { align: ['left', 'right'], rowH: 6 });
     const notes = [
       'Perdas incluídas: concreto 5%, aço 10%, argamassas 10%, blocos 5%.',
       `Concreto virado em obra C${s.fck}: consumo típico de cimento, areia e brita por m³.`,
@@ -230,7 +250,7 @@ export function appendStructuralSheets(doc: Doc, b: Building, r: StructureResult
       'Aço de vigas e pilares pelo dimensionamento; sapatas e lajes por taxa usual.',
       'Quantitativo preliminar para orçamento: confirmar com o projeto executivo.',
     ];
-    notes.forEach((n, k) => doc.text(`• ${n}`, a.x + half + 10, yy + 7 + k * 5.2, 2.1, { color: '#495057', maxWidth: half }));
+    notes.forEach((n, k) => doc.text(`• ${n}`, a.x + half + 10, a.y + 8 + k * 5.4, 2.2, { color: '#495057', maxWidth: half }));
   }
 
   // ---------- 7. termo de responsabilidade ----------

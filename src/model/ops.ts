@@ -174,7 +174,22 @@ export function setWallLength(plan: Plan, wallId: string, length: number): void 
   const A = plan.nodes[w.a];
   const B = plan.nodes[w.b];
   const d = normalize(sub(B, A));
-  moveNode(plan, w.b, add(A, mul(d, length)));
+  // move a ponta "livre" (ponta solta ou canto); encontros em T/X ficam no lugar
+  const degB = wallsAtNode(plan, w.b).length;
+  const degA = wallsAtNode(plan, w.a).length;
+  const moveA = degB > 2 && degA <= 2;
+  const nodeId = moveA ? w.a : w.b;
+  const from = { ...plan.nodes[nodeId] };
+  const to = moveA ? sub(B, mul(d, length)) : add(A, mul(d, length));
+  const delta = sub(to, from);
+  // estica o cômodo: a parede perpendicular presa a esse canto anda junto (se a outra ponta for canto livre)
+  for (const o of wallsAtNode(plan, nodeId)) {
+    if (o.id === w.id) continue;
+    const far = o.a === nodeId ? o.b : o.a;
+    const od = normalize(sub(plan.nodes[far], plan.nodes[nodeId]));
+    if (Math.abs(od.x * d.x + od.y * d.y) < 0.1 && wallsAtNode(plan, far).length <= 2) moveNode(plan, far, add(plan.nodes[far], delta));
+  }
+  moveNode(plan, nodeId, to);
 }
 
 export function addOpening(
