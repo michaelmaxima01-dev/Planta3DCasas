@@ -63,8 +63,19 @@ export interface RoomLabel {
   floorColor: string;
 }
 
+/** Dados do projeto usados no carimbo e na capa do PDF. */
+export interface ProjectMeta {
+  title: string;
+  client: string;
+  address: string;
+  author: string;
+  registry: string;
+  notes: string;
+}
+
 export interface Plan {
   version: 1;
+  meta?: ProjectMeta;
   nodes: Record<string, PlanNode>;
   walls: Record<string, Wall>;
   openings: Record<string, Opening>;

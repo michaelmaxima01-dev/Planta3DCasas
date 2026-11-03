@@ -4,22 +4,14 @@ import { detectRooms } from '../geometry/rooms';
 import { dist } from '../geometry/vec';
 import { clampOpeningOffset } from '../geometry/walls';
 import { deleteSelection, duplicateFurniture, moveNode, setRoomLabel, setWallLength } from '../model/ops';
+import { FLOOR_FINISHES } from '../model/finishes';
 import type { Plan } from '../model/types';
 import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { NumberField, TextField } from './Fields';
 import { fmtArea, fmtMeters } from './format';
 
-const FLOOR_COLORS = [
-  { c: '#d9c4a3', n: 'Madeira clara' },
-  { c: '#c8a77f', n: 'Madeira' },
-  { c: '#9c7652', n: 'Madeira escura' },
-  { c: '#cfd8dc', n: 'Porcelanato cinza' },
-  { c: '#ece7df', n: 'Porcelanato bege' },
-  { c: '#b9c4b0', n: 'Cerâmica verde' },
-  { c: '#a7a9ac', n: 'Cimento queimado' },
-  { c: '#f2f2f2', n: 'Branco' },
-];
+const FLOOR_COLORS = FLOOR_FINISHES;
 
 export function PropertiesPanel() {
   const plan = usePlan((s) => s.plan);

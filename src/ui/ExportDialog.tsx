@@ -1,0 +1,254 @@
+import { useEffect, useState } from 'react';
+import { buildDrawing } from '../export/drawing';
+import { type DxfUnit, buildDxf, dxfToBytes } from '../export/dxf';
+import { type Paper, buildPdf } from '../export/pdf';
+import { buildSchedule } from '../export/schedule';
+import { renderViews } from '../export/snapshots';
+import { DEFAULT_META } from '../model/finishes';
+import type { ProjectMeta } from '../model/types';
+import { usePlan } from '../store/planStore';
+
+const META_FIELDS: { key: keyof ProjectMeta; label: string; placeholder: string }[] = [
+  { key: 'title', label: 'Nome do projeto', placeholder: 'Residência Silva' },
+  { key: 'client', label: 'Cliente', placeholder: 'Nome do cliente' },
+  { key: 'address', label: 'Endereço da obra', placeholder: 'Rua, número - cidade/UF' },
+  { key: 'author', label: 'Responsável técnico', placeholder: 'Arq. Nome Sobrenome' },
+  { key: 'registry', label: 'Registro (CAU/CREA)', placeholder: 'CAU A00000-0' },
+  { key: 'notes', label: 'Observações', placeholder: 'Opcional' },
+];
+
+const SCALE_OPTIONS = [0, 25, 50, 75, 100, 125];
+
+export function slugify(s: string) {
+  return (
+    s
+      .normalize('NFD')
+      .replace(/[̀-ͯ]/g, '')
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '') || 'projeto'
+  );
+}
+
+function download(data: BlobPart, type: string, filename: string) {
+  const url = URL.createObjectURL(new Blob([data], { type }));
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function MetaField({ label, value, placeholder, onCommit }: { label: string; value: string; placeholder: string; onCommit: (v: string) => void }) {
+  const [text, setText] = useState(value);
+  useEffect(() => setText(value), [value]);
+  return (
+    <label className="meta-field">
+      <span>{label}</span>
+      <input value={text} placeholder={placeholder} onChange={(e) => setText(e.target.value)} onBlur={() => text !== value && onCommit(text.trim())} />
+    </label>
+  );
+}
+
+export function ExportDialog({ onClose }: { onClose: () => void }) {
+  const plan = usePlan((s) => s.plan);
+  const update = usePlan((s) => s.update);
+  const meta = { ...DEFAULT_META, ...plan.meta };
+
+  const [paper, setPaper] = useState<Paper>('A3');
+  const [scale, setScale] = useState(0);
+  const [roomPages, setRoomPages] = useState(true);
+  const [furnitureList, setFurnitureList] = useState(true);
+  const [views3d, setViews3d] = useState(true);
+
+  const [unit, setUnit] = useState<DxfUnit>('m');
+  const [dxfScale, setDxfScale] = useState(50);
+  const [wallFill, setWallFill] = useState(true);
+  const [dxfFurniture, setDxfFurniture] = useState(true);
+  const [dxfDims, setDxfDims] = useState(true);
+  const [dxfTexts, setDxfTexts] = useState(true);
+
+  const [busy, setBusy] = useState<string | null>(null);
+  const [done, setDone] = useState<string | null>(null);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  const setMeta = (key: keyof ProjectMeta, value: string) =>
+    update((d) => {
+      d.meta = { ...DEFAULT_META, ...d.meta, [key]: value };
+    });
+
+  const fileBase = slugify(meta.title);
+  const empty = Object.keys(plan.walls).length === 0;
+
+  const exportPdf = async () => {
+    setBusy('pdf');
+    setDone(null);
+    await new Promise((r) => setTimeout(r, 30)); // deixa a interface mostrar "Gerando…"
+    try {
+      const shots = renderViews(plan, views3d ? ['front', 'back', 'top'] : ['front']);
+      const titles = ['Perspectiva frontal', 'Perspectiva posterior', 'Vista superior'];
+      const pdf = buildPdf(
+        plan,
+        { paper, scale, roomPages, furnitureList, views3d, meta },
+        { cover: shots[0], views: views3d ? shots.map((src, i) => ({ title: titles[i], src })) : [] },
+      );
+      pdf.save(`${fileBase}.pdf`);
+      setDone(`PDF gerado: ${pdf.getNumberOfPages()} folhas (${fileBase}.pdf)`);
+    } catch (err) {
+      console.error(err);
+      alert('Não foi possível gerar o PDF. Veja o console para detalhes.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const exportDxf = () => {
+    const sch = buildSchedule(plan);
+    const drawing = buildDrawing(plan, sch, { scale: dxfScale, furniture: dxfFurniture, dimensions: dxfDims, texts: dxfTexts });
+    const dxf = buildDxf(drawing, { unit, scale: dxfScale, wallFill });
+    download(dxfToBytes(dxf), 'application/dxf', `${fileBase}.dxf`);
+    setDone(`DXF gerado em ${unit === 'm' ? 'metros' : unit === 'cm' ? 'centímetros' : 'milímetros'} (${fileBase}.dxf)`);
+  };
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="modal" role="dialog" aria-modal="true" aria-label="Exportar projeto">
+        <header>
+          <h2>Exportar projeto</h2>
+          <button className="close" onClick={onClose} aria-label="Fechar">
+            ✕
+          </button>
+        </header>
+
+        <div className="modal-body">
+          <section className="meta">
+            <h3>Dados do carimbo e da capa</h3>
+            <div className="meta-grid">
+              {META_FIELDS.map((f) => (
+                <MetaField key={f.key} label={f.label} placeholder={f.placeholder} value={meta[f.key]} onCommit={(v) => setMeta(f.key, v)} />
+              ))}
+            </div>
+            <p className="hint">Esses dados ficam salvos no projeto.</p>
+          </section>
+
+          <div className="formats">
+            <article className="format">
+              <div className="format-head">
+                <b>PDF</b>
+                <span>Caderno do projeto para cliente e obra</span>
+              </div>
+              <p className="hint">
+                Capa, planta baixa em escala com cotas, quadro de áreas, quadro de esquadrias, uma folha por cômodo
+                (desenho, medidas, portas, janelas e móveis), lista de mobiliário e vistas 3D.
+              </p>
+              <div className="opts">
+                <label>
+                  Papel
+                  <select value={paper} onChange={(e) => setPaper(e.target.value as Paper)}>
+                    <option value="A3">A3 paisagem</option>
+                    <option value="A4">A4 paisagem</option>
+                  </select>
+                </label>
+                <label>
+                  Escala da planta
+                  <select value={scale} onChange={(e) => setScale(Number(e.target.value))}>
+                    {SCALE_OPTIONS.map((s) => (
+                      <option key={s} value={s}>
+                        {s === 0 ? 'Automática' : `1:${s}`}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={roomPages} onChange={(e) => setRoomPages(e.target.checked)} /> Uma folha por cômodo
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={furnitureList} onChange={(e) => setFurnitureList(e.target.checked)} /> Lista de mobiliário
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={views3d} onChange={(e) => setViews3d(e.target.checked)} /> Vistas 3D
+                </label>
+              </div>
+              <button className="primary" disabled={!!busy || empty} onClick={exportPdf}>
+                {busy === 'pdf' ? 'Gerando…' : 'Baixar PDF'}
+              </button>
+            </article>
+
+            <article className="format">
+              <div className="format-head">
+                <b>DXF</b>
+                <span>AutoCAD, BricsCAD, DraftSight, LibreCAD</span>
+              </div>
+              <p className="hint">
+                Planta 2D em escala real com camadas (PAREDES, PORTAS, JANELAS, MOVEIS, COTAS, TEXTOS, COMODOS),
+                móveis como blocos e contorno dos cômodos (o comando ÁREA mede direto). Para DWG, abra no AutoCAD e use
+                Salvar como.
+              </p>
+              <div className="opts">
+                <label>
+                  Unidade
+                  <select value={unit} onChange={(e) => setUnit(e.target.value as DxfUnit)}>
+                    <option value="m">Metros</option>
+                    <option value="cm">Centímetros</option>
+                    <option value="mm">Milímetros</option>
+                  </select>
+                </label>
+                <label>
+                  Textos para plotar em
+                  <select value={dxfScale} onChange={(e) => setDxfScale(Number(e.target.value))}>
+                    {[25, 50, 75, 100].map((s) => (
+                      <option key={s} value={s}>{`1:${s}`}</option>
+                    ))}
+                  </select>
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={wallFill} onChange={(e) => setWallFill(e.target.checked)} /> Hachura sólida nas paredes
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={dxfFurniture} onChange={(e) => setDxfFurniture(e.target.checked)} /> Móveis
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={dxfDims} onChange={(e) => setDxfDims(e.target.checked)} /> Cotas
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={dxfTexts} onChange={(e) => setDxfTexts(e.target.checked)} /> Nomes, áreas e códigos
+                </label>
+              </div>
+              <button className="primary" disabled={!!busy || empty} onClick={exportDxf}>
+                Baixar DXF
+              </button>
+            </article>
+
+            <article className="format soon">
+              <div className="format-head">
+                <b>Próximos formatos</b>
+                <span>em desenvolvimento</span>
+              </div>
+              <ul>
+                <li>
+                  <b>IFC</b> - Revit, Archicad, SketchUp Pro (BIM)
+                </li>
+                <li>
+                  <b>glTF / OBJ</b> - Blender, SketchUp, Unreal, Unity
+                </li>
+                <li>
+                  <b>USDZ</b> - realidade aumentada no iPhone/iPad
+                </li>
+                <li>
+                  <b>PNG / SVG</b> - imagens da planta e do 3D
+                </li>
+              </ul>
+            </article>
+          </div>
+          {empty && <p className="hint">Desenhe ao menos uma parede para exportar.</p>}
+          {done && <p className="done">✓ {done}</p>}
+        </div>
+      </div>
+    </div>
+  );
+}

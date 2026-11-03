@@ -338,3 +338,146 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
 }
+
+/* ---------- exportar ---------- */
+.topbar .export-btn {
+  background: #2f9e44;
+  border-color: #2f9e44;
+}
+.topbar .export-btn:hover:not(:disabled) {
+  background: #37b24d;
+}
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 32, 0.55);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 16px;
+}
+.modal {
+  background: var(--panel);
+  color: var(--text);
+  width: min(1080px, 100%);
+  max-height: calc(100vh - 32px);
+  border-radius: 12px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.modal header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+.modal h2 {
+  margin: 0;
+  font-size: 17px;
+}
+.modal .close {
+  background: none;
+  border: none;
+  font-size: 16px;
+}
+.modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px 14px;
+}
+.meta-field {
+  display: grid;
+  gap: 4px;
+}
+.meta-field span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.meta-field input,
+.opts select {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  background: #fff;
+}
+.formats {
+  display: grid;
+  grid-template-columns: 1fr 1fr 0.8fr;
+  gap: 14px;
+}
+.format {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.format-head {
+  display: grid;
+  gap: 2px;
+}
+.format-head b {
+  font-size: 18px;
+}
+.format-head span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.opts {
+  display: grid;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.opts label {
+  display: grid;
+  gap: 3px;
+  font-size: 12px;
+  color: var(--muted);
+}
+.opts label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+  font-size: 13px;
+}
+.format .primary {
+  margin-top: auto;
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 9px;
+}
+.format .primary:hover:not(:disabled) {
+  background: #1f6be0;
+}
+.format.soon {
+  background: #f8f9fb;
+}
+.format.soon ul {
+  margin: 0;
+  padding-left: 18px;
+  line-height: 1.9;
+  color: var(--muted);
+}
+.done {
+  margin: 12px 0 0;
+  color: #2b8a3e;
+  font-weight: 600;
+}
+@media (max-width: 900px) {
+  .meta-grid,
+  .formats {
+    grid-template-columns: 1fr;
+  }
+}

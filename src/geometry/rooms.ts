@@ -20,6 +20,8 @@ export interface Room {
   /** id do rótulo, ou "face:..." quando o cômodo ainda não tem nome salvo. */
   id: string;
   labelId?: string;
+  /** Nós do contorno (mesma ordem de `polygon`). */
+  nodes: string[];
   name: string;
   floorColor: string;
   /** Contorno pela linha central das paredes. */
@@ -140,6 +142,7 @@ export function detectRooms(plan: Plan): Room[] {
     return {
       id: label?.id ?? `face:${[...ids].sort().join(',')}`,
       labelId: label?.id,
+      nodes: ids,
       name: label?.name ?? 'Cômodo',
       floorColor: label?.floorColor ?? DEFAULT_FLOOR,
       polygon,

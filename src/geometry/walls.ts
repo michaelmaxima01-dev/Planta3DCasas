@@ -186,3 +186,28 @@ export function clampOpeningOffset(length: number, width: number, offset: number
   if (lo > hi) return length / 2;
   return Math.min(hi, Math.max(lo, offset));
 }
+
+/** Partes cheias da parede vistas em planta (o vão de portas e janelas fica aberto). */
+export function wallPlanPieces(g: WallGeom, openings: Opening[]): Vec2[][] {
+  const u = (p: Vec2) => dot(sub(p, g.a), g.dir);
+  const slab = (lo: number, hi: number) => {
+    let r = g.polygon;
+    if (lo > -Infinity) r = clipHalfPlane(r, (p) => u(p) - lo);
+    if (hi < Infinity) r = clipHalfPlane(r, (p) => hi - u(p));
+    r = dedupe(r);
+    return r.length >= 3 && Math.abs(signedArea(r)) > 1e-8 ? r : null;
+  };
+  const out: Vec2[][] = [];
+  let cursor = -Infinity;
+  for (const op of [...openings].sort((p, q) => p.offset - q.offset)) {
+    const lo = Math.max(op.offset - op.width / 2, cursor);
+    const hi = op.offset + op.width / 2;
+    if (hi <= lo) continue;
+    const piece = lo > cursor ? slab(cursor, lo) : null;
+    if (piece) out.push(piece);
+    cursor = hi;
+  }
+  const last = slab(cursor, Infinity);
+  if (last) out.push(last);
+  return out;
+}

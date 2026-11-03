@@ -39,6 +39,19 @@ O projeto é salvo sozinho no navegador; **Exemplo** recarrega a casa e **Novo**
 | Salvar / abrir | **Salvar** baixa um `planta.json`; **Abrir** carrega de volta |
 | Navegar na planta | Roda do mouse = zoom no cursor • arrastar o fundo ou botão direito = mover • **Enquadrar** centraliza |
 
+## Exportação (botão verde **Exportar**)
+
+| Formato | Para quê | O que leva |
+|---|---|---|
+| **PDF** | Cliente e obra | Capa com 3D, planta baixa em escala (automática ou 1:25 a 1:125) com cotas, quadro de áreas, quadro de esquadrias (P1, J1…), uma folha por cômodo (desenho recortado com medidas internas, área, perímetro, pé-direito, volume, piso, área de paredes, rodapé, portas, janelas e móveis), lista de mobiliário e vistas 3D. Carimbo em todas as folhas, A3 ou A4 |
+| **DXF** | AutoCAD, BricsCAD, DraftSight, LibreCAD | Planta 2D em escala real (m, cm ou mm) com camadas PAREDES, PORTAS, JANELAS, MOVEIS, COTAS, TEXTOS, COMODOS e PAREDES-HACHURA; móveis como blocos; contorno dos cômodos medível com ÁREA. Para DWG: abrir no AutoCAD e usar *Salvar como* |
+| **JSON** (botão Salvar) | Arquivo-mestre | Tudo, inclusive o comportamento paramétrico. É o único que abre de volta aqui |
+
+Os dados do carimbo (projeto, cliente, endereço, responsável, CAU/CREA) são preenchidos na janela de exportação e ficam salvos no projeto.
+
+**Testar:** Exportar → preencher o carimbo → *Baixar PDF* e *Baixar DXF*. Abrir o DXF no AutoCAD
+(ou no LibreCAD/DraftSight, que são gratuitos) e conferir camadas, blocos de móveis e o comando ÁREA num cômodo.
+
 ## Organização do código
 
 ```
@@ -53,7 +66,8 @@ src/
   store/       estado da planta (com histórico) e estado da interface
   editor2d/    planta 2D em SVG (ferramentas, cotas, símbolos)
   view3d/      cena 3D (paredes, pisos, aberturas, móveis, luzes)
-  ui/          barra superior, ferramentas/catálogo, painel de propriedades
+  export/      levantamento (schedule), desenho técnico comum (drawing), PDF, DXF e imagens 3D
+  ui/          barra superior, ferramentas/catálogo, painel de propriedades, janela de exportação
 ```
 
 A geometria fica isolada em `src/geometry` para poder ser trocada por um núcleo em Rust/WebAssembly no futuro sem mexer na interface.

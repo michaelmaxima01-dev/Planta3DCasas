@@ -1,10 +1,11 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { useStore } from 'zustand';
 import { buildExamplePlan } from '../model/example';
 import { createEmptyPlan } from '../model/ops';
 import type { Plan } from '../model/types';
 import { clearHistory, redo, undo, usePlan } from '../store/planStore';
 import { type ViewMode, useUI } from '../store/uiStore';
+import { ExportDialog } from './ExportDialog';
 
 export function TopBar() {
   const canUndo = useStore(usePlan.temporal, (s) => s.pastStates.length > 0);
@@ -15,6 +16,7 @@ export function TopBar() {
   const toggleCutWalls = useUI((s) => s.toggleCutWalls);
   const requestFit = useUI((s) => s.requestFit);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [exporting, setExporting] = useState(false);
 
   const replace = (plan: Plan) => {
     usePlan.getState().setPlan(plan);
@@ -57,7 +59,10 @@ export function TopBar() {
         <button onClick={() => confirm('Começar um projeto em branco? O atual será substituído.') && replace(createEmptyPlan())}>Novo</button>
         <button onClick={() => confirm('Carregar a casa de exemplo? O projeto atual será substituído.') && replace(buildExamplePlan())}>Exemplo</button>
         <button onClick={() => fileRef.current?.click()}>Abrir</button>
-        <button onClick={save}>Salvar</button>
+        <button onClick={save} title="Salva o arquivo do projeto (.json), que pode ser aberto de novo aqui">Salvar</button>
+        <button className="export-btn" onClick={() => setExporting(true)} title="PDF, AutoCAD (DXF) e outros formatos">
+          Exportar
+        </button>
         <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => e.target.files?.[0] && open(e.target.files[0])} />
       </div>
       <div className="group">
@@ -77,6 +82,7 @@ export function TopBar() {
         </button>
         <button onClick={requestFit} title="Enquadrar o projeto nas vistas">Enquadrar</button>
       </div>
+      {exporting && <ExportDialog onClose={() => setExporting(false)} />}
     </header>
   );
 }
