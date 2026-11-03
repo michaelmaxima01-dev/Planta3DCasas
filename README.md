@@ -195,3 +195,12 @@ O `.htaccess` incluso ativa compressão e cache. Para forçar HTTPS, descomente 
 - **Cozinha**: balcão de mármore (divisória cozinha/sala), com banquetas, península e ilha; pia com gabinete, cozinha planejada em L, torre quente, mesa 6 e 8 lugares, canto alemão.
 - **Escadas**: L virando à esquerda, L com leque, U lance duplo, U de três lances, imperial, concreto armado, metálica, degraus de entrada e rampa acessível (NBR 9050).
 - **Esquadrias**: portão basculante e de correr, porta de vidro temperado, porta camarão, janela com veneziana, vidro fixo e pele de vidro.
+
+## v7.0: muros, cercas, terreno e mais objetos
+
+- **Ferramenta Muro / cerca (U)**: desenha em sequência como as paredes (medida digitada, Shift 0°/90°, encaixe nas pontas e no terreno). 19 tipos: muro de bloco, muro alto, tijolo aparente, pedra, placas pré-moldadas, cerca elétrica, concertina, mureta, mureta com jardineira, mureta com gradil, mureta com vidro, gradil, gradil com lança, alambrado, cercas de madeira, ripada, bambu, arame e cerca viva.
+- **Portões**: social, garagem de correr, basculante, 2 folhas, madeira e porteira. Clicados sobre um muro, abrem o vão sozinhos.
+- **Terreno e muros**: lote (testada × profundidade), lado da rua, recuo frontal 4 m, taxa de ocupação, coeficiente de aproveitamento, área permeável e o botão **Murar o terreno**.
+- **Quantitativo "Muros e cercas"**: blocos, argamassa, pilaretes, cintas, brocas, aço, pintura, gradil, tela, mourões e portões. Camada **MUROS** no DXF.
+- **Novas categorias**: Fachada e entrada (caixa de correio, lixeira suspensa, interfone, padrão de energia, hidrômetro, abrigo de gás, caixa d'água, placas solares, aquecedor solar, condensadora, cobertura de garagem, concregrama…) e Pets e lazer (casinha, canil, cama elástica, ping-pong, fogo de chão…).
+- **Editor**: Ctrl+C / Ctrl+V (inclusive para outro andar) e setas do teclado para mover 1 cm (Shift = 10 cm).

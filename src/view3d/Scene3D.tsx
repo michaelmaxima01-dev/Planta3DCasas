@@ -1,3 +1,4 @@
+import { siteSize } from '../model/site';
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useState } from 'react';
@@ -121,6 +122,16 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
         <planeGeometry args={[frame.radius * 12, frame.radius * 12]} />
         <meshStandardMaterial color="#d5dbe2" roughness={1} />
       </mesh>
+
+      {building.site?.show && (() => {
+        const { sx, sy } = siteSize(building.site);
+        return (
+          <mesh rotation-x={-Math.PI / 2} position={[building.site.x + sx / 2, 0.004, building.site.y + sy / 2]} receiveShadow>
+            <planeGeometry args={[sx, sy]} />
+            <meshStandardMaterial color="#a9c98a" roughness={1} />
+          </mesh>
+        );
+      })()}
 
       {visible.map((l, i) => (
         <group key={l.id} position-y={l.elevation}>

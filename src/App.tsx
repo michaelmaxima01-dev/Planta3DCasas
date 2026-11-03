@@ -1,8 +1,9 @@
 import { useEffect } from 'react';
 import './App.css';
 import { Plan2D } from './editor2d/Plan2D';
-import { deleteSelection, duplicateFurniture } from './model/ops';
-import { redo, undo, usePlan } from './store/planStore';
+import { addFurniture, deleteSelection, duplicateFurniture } from './model/ops';
+import type { FurnitureItem } from './model/types';
+import { redo, selectPlan, undo, usePlan } from './store/planStore';
 import { type Tool, useUI } from './store/uiStore';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Sidebar } from './ui/Sidebar';
@@ -17,8 +18,9 @@ import { AddLevelDialog, FloorSwitcher, Toast } from './ui/Levels';
 
 const HINTS: Record<Tool, string> = {
   select:
-    'Clique para selecionar • arraste para mover • Delete exclui • R gira o móvel • arraste o fundo (ou botão direito) para mover a vista • roda do mouse = zoom',
+    'Clique para selecionar • arraste para mover • setas movem 1 cm (Shift = 10 cm) • Ctrl+C/Ctrl+V copia (até para outro andar) • Delete exclui • R gira • arraste o fundo (ou botão direito) para mover a vista • roda do mouse = zoom',
   wall: 'Clique para começar e em cada canto • DIGITE a medida (ex.: 3,5) + Enter para parede exata • Shift trava 0°/90° • Esc termina • encaixa em cantos (verde), paredes (laranja), 45° e grade • Alt desliga o encaixe',
+  fence: 'Muro/cerca: clique em cada ponto • DIGITE a medida + Enter • Shift trava 0°/90° • encaixa nos cantos do terreno e nas pontas dos muros • Esc termina • portões: escolha no catálogo e clique sobre o muro',
   room: 'Clique em um canto e no canto oposto (ou digite 4x3 + Enter) para criar um cômodo retangular com 4 paredes • Esc cancela',
   door: 'Clique sobre uma parede para inserir a porta • Esc volta para Selecionar',
   window: 'Clique sobre uma parede para inserir a janela • Esc volta para Selecionar',
@@ -35,7 +37,10 @@ const STRUCT_HINTS: Record<'select' | 'pillar' | 'beam', string> = {
   beam: 'Clique em dois pilares para criar a viga entre eles • Esc volta',
 };
 
-const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', c: 'room', d: 'door', j: 'window', l: 'pencil', a: 'arrow', t: 'text', m: 'measure' };
+/** Área de transferência de objetos (Ctrl+C / Ctrl+V). */
+let clipboard: FurnitureItem | null = null;
+
+const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', u: 'fence', c: 'room', d: 'door', j: 'window', l: 'pencil', a: 'arrow', t: 'text', m: 'measure' };
 
 export default function App() {
   const viewMode = useUI((s) => s.viewMode);
@@ -70,7 +75,42 @@ export default function App() {
         if (id) ui.select({ kind: 'furniture', id });
         return;
       }
+      if (mod && key === 'c' && ui.selection?.kind === 'furniture') {
+        const f = selectPlan(usePlan.getState()).furniture[ui.selection.id];
+        if (f) clipboard = { ...f };
+        ui.set({ toast: 'Copiado. Ctrl+V cola (também em outro andar).' });
+        return;
+      }
+      if (mod && key === 'v' && clipboard) {
+        e.preventDefault();
+        const src = clipboard;
+        let id: string | null = null;
+        usePlan.getState().update((d) => {
+          const same = d.furniture[src.id];
+          id = addFurniture(d, src.catalogId, same ? { x: src.x + 0.3, y: src.y + 0.3 } : { x: src.x, y: src.y }, src.rotation, { width: src.width, depth: src.depth, height: src.height, elevation: src.elevation });
+        });
+        if (id) {
+          ui.setTool('select');
+          ui.select({ kind: 'furniture', id });
+        }
+        return;
+      }
       if (mod || e.altKey) return;
+      if (e.key.startsWith('Arrow') && ui.mode === 'arch' && ui.selection?.kind === 'furniture') {
+        e.preventDefault();
+        const step = e.shiftKey ? 0.1 : 0.01;
+        const dx = e.key === 'ArrowLeft' ? -step : e.key === 'ArrowRight' ? step : 0;
+        const dy = e.key === 'ArrowUp' ? -step : e.key === 'ArrowDown' ? step : 0;
+        const id = ui.selection.id;
+        usePlan.getState().update((d) => {
+          const f = d.furniture[id];
+          if (f) {
+            f.x = Math.round((f.x + dx) * 1000) / 1000;
+            f.y = Math.round((f.y + dy) * 1000) / 1000;
+          }
+        });
+        return;
+      }
       if (e.key === 'PageUp' || e.key === 'PageDown') {
         e.preventDefault();
         const ps = usePlan.getState();

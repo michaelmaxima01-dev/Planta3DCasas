@@ -7,6 +7,7 @@
  * concreto 5%, aço 10%, argamassas 10%, blocos 5%. Valores para orçamento preliminar.
  */
 import { dist } from '../geometry/vec';
+import { CATALOG_BY_ID } from '../catalog/catalog';
 import type { Building } from '../model/types';
 import type { StructureResult } from './analyze';
 
@@ -18,7 +19,7 @@ export interface QtyRow {
   note?: string;
 }
 
-export type StageKey = 'fundacao' | 'estrutura' | 'alvenaria' | 'telhado';
+export type StageKey = 'fundacao' | 'estrutura' | 'alvenaria' | 'telhado' | 'muros';
 
 export interface Stage {
   key: StageKey;
@@ -255,9 +256,105 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     if (/Telhas|Shingle|Chapas OSB|Calhas|Cumeeiras/.test(e.name)) roofRows.push({ group: T.group, item: e.name, unit: e.unit, qty: e.qty });
   }
 
+  // ---------- muros, muretas e cercas ----------
+  const M = new Acc('Muros e cercas');
+  const mExtra: QtyRow[] = [];
+  const mm = { block: 0, brick: 0, gradil: 0, mesh: 0, wood: 0, wire: 0, glass: 0, stone: 0, plates: 0, posts: 0, plants: 0, paint: 0, gates: 0 };
+  let mLen = 0;
+  for (const f of Object.values(b.levels[0]?.plan.furniture ?? {})) {
+    const c = CATALOG_BY_ID[f.catalogId];
+    if (c?.gate) {
+      mm.gates++;
+      M.row(c.name, 'un', 1, `${f1(f.width)} m`);
+      continue;
+    }
+    if (!c?.fence || !c.fenceQty) continue;
+    const L = f.width;
+    const H = f.height;
+    mLen += L;
+    const masonry = (h: number, kind: 'block' | 'brick') => {
+      const area = L * h;
+      if (kind === 'block') mm.block += area;
+      else mm.brick += area;
+      M.mortar += area * 0.013 * LOSS.mortar + (kind === 'block' ? area * 2 * 0.02 * LOSS.mortar : 0);
+      if (kind === 'block') mm.paint += area * 2;
+      // pilaretes a cada 3 m e cinta/baldrame corrido 15×30
+      const piers = Math.ceil(L / 3) + 1;
+      M.concrete += piers * 0.15 * 0.15 * h + L * 0.15 * 0.3;
+      M.bar('8', piers * 4 * (h + 0.5) + L * 4);
+      M.bar('5', (piers * Math.ceil(h / 0.15) + Math.ceil(L / 0.15)) * 0.6);
+      // brocas (estacas curtas Ø25, 2 m) sob os pilaretes
+      M.concrete += piers * Math.PI * 0.125 ** 2 * 2;
+    };
+    switch (c.fenceQty) {
+      case 'bloco':
+        masonry(Math.min(H, 2.5), 'block');
+        break;
+      case 'tijolo':
+        masonry(H, 'brick');
+        break;
+      case 'mureta':
+        masonry(H, 'block');
+        break;
+      case 'mureta_gradil':
+        masonry(0.6, 'block');
+        mm.gradil += L * (H - 0.6);
+        break;
+      case 'mureta_vidro':
+        masonry(0.6, 'block');
+        mm.glass += L * (H - 0.6);
+        break;
+      case 'pedra':
+        mm.stone += L * H * f.depth;
+        M.mortar += L * H * f.depth * 0.3;
+        break;
+      case 'premoldado':
+        mm.plates += L * H;
+        mm.posts += Math.ceil(L / 2) + 1;
+        break;
+      case 'gradil':
+        mm.gradil += L * H;
+        mm.posts += Math.ceil(L / 2) + 1;
+        break;
+      case 'alambrado':
+        mm.mesh += L * H;
+        mm.posts += Math.ceil(L / 2.5) + 1;
+        break;
+      case 'madeira':
+      case 'bambu':
+        mm.wood += L;
+        break;
+      case 'arame':
+        mm.wire += L * 4;
+        mm.posts += Math.ceil(L / 2.5) + 1;
+        break;
+      case 'viva':
+        mm.plants += Math.ceil(L / 0.4);
+        break;
+    }
+    M.row(c.name, 'm', L, `altura ${f1(H)} m`);
+  }
+  if (mLen > 0 || mm.gates > 0) {
+    const area = mm.block + mm.brick;
+    if (mm.block > 0) mExtra.push({ group: M.group, item: 'Blocos de concreto 14×19×39 (muros)', unit: 'un', qty: Math.ceil(mm.block * 12.5 * LOSS.block) });
+    if (mm.brick > 0) mExtra.push({ group: M.group, item: 'Tijolos maciços aparentes', unit: 'un', qty: Math.ceil(mm.brick * 48 * LOSS.block) });
+    if (mm.paint > 0) mExtra.push({ group: M.group, item: 'Pintura acrílica externa (2 faces)', unit: 'm²', qty: mm.paint }, { group: M.group, item: 'Tinta acrílica (latas de 18 L, 2 demãos)', unit: 'un', qty: Math.ceil((mm.paint * 2) / 200) });
+    if (mm.gradil > 0) mExtra.push({ group: M.group, item: 'Gradil metálico (com pintura)', unit: 'm²', qty: mm.gradil });
+    if (mm.glass > 0) mExtra.push({ group: M.group, item: 'Vidro temperado 10 mm', unit: 'm²', qty: mm.glass });
+    if (mm.mesh > 0) mExtra.push({ group: M.group, item: 'Tela de alambrado (fio 12)', unit: 'm²', qty: mm.mesh * 1.05 });
+    if (mm.plates > 0) mExtra.push({ group: M.group, item: 'Placas pré-moldadas de concreto', unit: 'm²', qty: mm.plates });
+    if (mm.stone > 0) mExtra.push({ group: M.group, item: 'Pedra rachão', unit: 'm³', qty: mm.stone * 1.1 });
+    if (mm.posts > 0) mExtra.push({ group: M.group, item: 'Mourões / postes', unit: 'un', qty: mm.posts });
+    if (mm.wood > 0) mExtra.push({ group: M.group, item: 'Cerca de madeira/bambu (painéis)', unit: 'm', qty: mm.wood });
+    if (mm.wire > 0) mExtra.push({ group: M.group, item: 'Arame liso/farpado', unit: 'm', qty: mm.wire * 1.1 });
+    if (mm.plants > 0) mExtra.push({ group: M.group, item: 'Mudas para cerca viva', unit: 'un', qty: mm.plants });
+    if (mm.gates > 0) mExtra.push({ group: M.group, item: 'Portões', unit: 'un', qty: mm.gates });
+    M.row('Comprimento total de muros e cercas', 'm', mLen, area > 0 ? `${f1(area)} m² de alvenaria` : undefined);
+  }
+
   // ---------- aço por bitola (total) ----------
   const allBars = new Map<string, number>();
-  for (const acc of [F, E]) for (const [d, kg] of acc.steel) allBars.set(d, (allBars.get(d) ?? 0) + kg);
+  for (const acc of [F, E, M]) for (const [d, kg] of acc.steel) allBars.set(d, (allBars.get(d) ?? 0) + kg);
   const steelByBar = [...allBars.entries()]
     .map(([d, kg]) => ({ d, kg: kg * LOSS.steel }))
     .sort((a, c) => parseFloat(a.d.replace(',', '.')) - parseFloat(c.d.replace(',', '.')));
@@ -274,12 +371,16 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     { key: 'alvenaria', name: 'Alvenaria', rows: A.rows, summary: A.summary(s.fck, blockRow) },
     { key: 'telhado', name: 'Telhado', rows: T.rows, summary: roofRows },
   ];
+  if (M.rows.length) {
+    for (const [d, kg] of [...M.steel.entries()]) M.row(`Aço Ø${d} mm (pilaretes e cintas)`, 'kg', kg * LOSS.steel);
+    stages.push({ key: 'muros', name: 'Muros e cercas', rows: M.rows, summary: M.summary(s.fck, mExtra) });
+  }
 
   // ---------- total ----------
   const tot = new Acc('Total');
-  tot.concrete = F.concrete + E.concrete;
+  tot.concrete = F.concrete + E.concrete + M.concrete;
   tot.lean = F.lean;
-  tot.mortar = A.mortar;
+  tot.mortar = A.mortar + M.mortar;
   tot.screed = A.screed;
   tot.steelRate = F.steelRate + E.steelRate;
   for (const [d, kg] of allBars) tot.steel.set(d, kg);
@@ -288,8 +389,9 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     ...blockRow.map((x) => ({ ...x, group: 'Total' })),
     { group: 'Total', item: 'Escavação', unit: 'm³', qty: excavation },
     ...roofRows.map((x) => ({ ...x, group: 'Total' })),
+    ...mExtra.map((x) => ({ ...x, group: 'Total' })),
   ]);
-  summary[0] = { ...summary[0], item: `Concreto estrutural C${s.fck} (fundação ${f1(F.concrete * LOSS.concrete)} + estrutura ${f1(E.concrete * LOSS.concrete)} m³)` };
+  summary[0] = { ...summary[0], item: `Concreto estrutural C${s.fck} (fundação ${f1(F.concrete * LOSS.concrete)} + estrutura ${f1(E.concrete * LOSS.concrete)}${M.concrete > 0 ? ` + muros ${f1(M.concrete * LOSS.concrete)}` : ''} m³)` };
 
   return { stages, rows: stages.flatMap((st) => st.rows), summary, steelByBar };
 }

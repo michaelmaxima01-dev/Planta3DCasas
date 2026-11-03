@@ -9,7 +9,7 @@ import { wallPlanPieces } from '../geometry/walls';
 import type { Opening, Plan } from '../model/types';
 import type { ProjectSchedule } from './schedule';
 
-export type Layer = 'PAREDES' | 'PORTAS' | 'JANELAS' | 'MOVEIS' | 'COTAS' | 'TEXTOS' | 'COMODOS' | 'PILARES' | 'VIGAS' | 'LAJES' | 'FUNDACAO' | 'ANOTACOES';
+export type Layer = 'PAREDES' | 'PORTAS' | 'JANELAS' | 'MOVEIS' | 'COTAS' | 'TEXTOS' | 'COMODOS' | 'PILARES' | 'VIGAS' | 'LAJES' | 'FUNDACAO' | 'ANOTACOES' | 'MUROS';
 
 export const LAYERS: { name: Layer; color: number; label: string }[] = [
   // color = índice de cor do AutoCAD (ACI)
@@ -25,6 +25,7 @@ export const LAYERS: { name: Layer; color: number; label: string }[] = [
   { name: 'LAJES', color: 2, label: 'Lajes' },
   { name: 'FUNDACAO', color: 40, label: 'Fundação' },
   { name: 'ANOTACOES', color: 1, label: 'Marcações' },
+  { name: 'MUROS', color: 52, label: 'Muros, cercas e portões' },
 ];
 
 interface Style {
@@ -158,13 +159,16 @@ export function buildDrawing(plan: Plan, sch: ProjectSchedule, o: DrawingOptions
   }
 
   // móveis (por baixo das paredes)
-  if (o.furniture !== false) {
+  {
     const list = Object.values(plan.furniture).sort((a, b) => a.elevation + a.height - (b.elevation + b.height));
     for (const f of list) {
-      if (!CATALOG_BY_ID[f.catalogId]) continue;
+      const c = CATALOG_BY_ID[f.catalogId];
+      if (!c) continue;
+      const wall = !!(c.fence || c.gate);
+      if (!wall && o.furniture === false) continue;
       const name = furnitureBlockName(f);
       blocks[name] ??= furnitureBlock(name, f);
-      prims.push({ t: 'insert', layer: 'MOVEIS', block: name, p: { x: f.x, y: f.y }, rotation: f.rotation });
+      prims.push({ t: 'insert', layer: wall ? 'MUROS' : 'MOVEIS', block: name, p: { x: f.x, y: f.y }, rotation: f.rotation });
     }
   }
 

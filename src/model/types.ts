@@ -123,6 +123,8 @@ export interface Building {
   levels: Level[];
   structure: import('../structure/types').StructureModel;
   roof?: import('../roof/roof').RoofModel;
+  /** Terreno (lote). */
+  site?: import('./site').Site;
 }
 
 export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room' | 'pillar' | 'beam' | 'slab' | 'footing' | 'annotation';

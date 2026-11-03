@@ -2,6 +2,9 @@ import { type PointerEvent as RPointerEvent, useCallback, useEffect, useMemo, us
 import { CATALOG_BY_ID } from '../catalog/catalog';
 import { detectRooms } from '../geometry/rooms';
 import { ROOM_PRESETS, applyPreset } from '../model/presets';
+import { addFenceSegment, fencePoints, insertGate, isFence, isGate } from '../model/fences';
+import { RECUO_FRONTAL, siteCorners } from '../model/site';
+import type { Plan } from '../model/types';
 import { type SnapResult, roundTo, snapFurnitureToWall, snapPoint } from '../geometry/snap';
 import { type Vec2, add, clamp, dist, dot, mul, normalize, perp, pointInPolygon, projectOnSegment, sub } from '../geometry/vec';
 import { type WallGeom, clampOpeningOffset, computeWallGeometry } from '../geometry/walls';
@@ -80,6 +83,17 @@ export function Plan2D() {
   const [roomStart, setRoomStart] = useState<Vec2 | null>(null);
   const roomPresetKey = useUI((s) => s.roomPreset);
   const roomPresetDef = ROOM_PRESETS.find((r) => r.key === roomPresetKey);
+  const fenceType = useUI((s) => s.fenceType);
+  const site = usePlan((s) => (s.building.levels[0]?.id === s.levelId && s.building.site?.show ? s.building.site : null));
+  const siteCs = useMemo(() => (site ? siteCorners(site) : []), [site]);
+  const fencePts = useMemo(() => [...fencePoints(plan), ...siteCs], [plan, siteCs]);
+  const segExtra = tool === 'fence' ? [...belowPoints, ...fencePts] : belowPoints;
+  const segThickness = tool === 'fence' ? (CATALOG_BY_ID[fenceType]?.depth ?? 0.15) : wallThickness;
+  /** Trecho da ferramenta atual: parede ou muro/cerca. */
+  const addSegment = (d: Plan, a: Vec2, b: Vec2) => {
+    if (tool === 'fence') addFenceSegment(d, fenceType, a, b);
+    else addWall(d, a, b, { thickness: wallThickness, height: wallHeight });
+  };
   /** Medida digitada durante o desenho (ex.: "3,5" ou "4x3"). */
   const [typed, setTyped] = useState('');
   const [shiftKey, setShiftKey] = useState(false);
@@ -115,7 +129,13 @@ export function Plan2D() {
 
   const fit = useCallback(() => {
     if (!size) return;
-    const b = planBounds(selectPlan(usePlan.getState())) ?? { minX: 0, minY: 0, maxX: 10, maxY: 8 };
+    const st = usePlan.getState();
+    let b = planBounds(selectPlan(st)) ?? { minX: 0, minY: 0, maxX: 10, maxY: 8 };
+    const ls = st.building.site;
+    if (ls?.show && st.building.levels[0]?.id === st.levelId) {
+      const cs = siteCorners(ls);
+      b = { minX: Math.min(b.minX, ...cs.map((q) => q.x)), minY: Math.min(b.minY, ...cs.map((q) => q.y)), maxX: Math.max(b.maxX, ...cs.map((q) => q.x)), maxY: Math.max(b.maxY, ...cs.map((q) => q.y)) };
+    }
     const pad = 60;
     const w = Math.max(1, b.maxX - b.minX);
     const h = Math.max(1, b.maxY - b.minY);
@@ -166,7 +186,7 @@ export function Plan2D() {
       if (e.type !== 'keydown') return;
       const tag = (e.target as HTMLElement).tagName;
       if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
-      const drawing = (tool === 'wall' && chain) || (tool === 'room' && roomStart);
+      const drawing = ((tool === 'wall' || tool === 'fence') && chain) || (tool === 'room' && roomStart);
       if (!drawing) return;
       // medida digitada: números, vírgula, ponto e "x" (largura x profundidade)
       if (/^[0-9.,]$/.test(e.key) || (tool === 'room' && (e.key === 'x' || e.key === 'X' || e.key === '*' || e.key === ' '))) {
@@ -331,8 +351,8 @@ export function Plan2D() {
       return;
     }
 
-    if (tool === 'wall') {
-      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints });
+    if (tool === 'wall' || tool === 'fence') {
+      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: segExtra });
       if (chain && e.shiftKey) sn.point = ortho(chain, sn.point);
       if (!chain) {
         setChain(sn.point);
@@ -342,10 +362,8 @@ export function Plan2D() {
         setChain(null);
         return;
       }
-      const closesLoop = !!sn.nodeId && wallsAtNode(plan, sn.nodeId).length > 0;
-      update((d) => {
-        addWall(d, chain, sn.point, { thickness: wallThickness, height: wallHeight });
-      });
+      const closesLoop = tool === 'wall' && !!sn.nodeId && wallsAtNode(plan, sn.nodeId).length > 0;
+      update((d) => addSegment(d, chain, sn.point));
       setChain(closesLoop ? null : sn.point);
       setTyped('');
       return;
@@ -368,7 +386,7 @@ export function Plan2D() {
       let id: string | null = null;
       const dims = itemDims(catalogId);
       update((d) => {
-        id = addFurniture(d, catalogId, pl.pos, pl.rotation, dims);
+        id = CATALOG_BY_ID[catalogId]?.gate ? insertGate(d, catalogId, p, pl.rotation) : addFurniture(d, catalogId, pl.pos, pl.rotation, dims);
       });
       setTool('select');
       if (id) select({ kind: 'furniture', id });
@@ -418,7 +436,7 @@ export function Plan2D() {
       let pos = add(d.orig, sub(p, d.start));
       let rot = d.rot;
       pos = { x: roundTo(pos.x, 0.01), y: roundTo(pos.y, 0.01) };
-      if (!e.altKey && f.elevation === 0) {
+      if (!e.altKey && f.elevation === 0 && !isFence(f) && !isGate(f)) {
         const ws = snapFurnitureToWall(geomList, pos, f.depth);
         if (ws) {
           pos = ws.pos;
@@ -512,8 +530,8 @@ export function Plan2D() {
       return;
     }
     hoverRef.current = p;
-    if (tool === 'wall') {
-      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints });
+    if (tool === 'wall' || tool === 'fence') {
+      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: segExtra });
       if (chain && e.shiftKey) sn.point = ortho(chain, sn.point);
       setSnap(sn);
     } else if (tool === 'room') setSnap(snapPoint(plan, p, { pxPerMeter: view.s, disabled: e.altKey, extraPoints: belowPoints }));
@@ -538,7 +556,7 @@ export function Plan2D() {
   function commitTyped() {
     const num = (t: string) => parseFloat(t.replace(',', '.'));
     const cur = snap?.point ?? hoverRef.current;
-    if (tool === 'wall' && chain) {
+    if ((tool === 'wall' || tool === 'fence') && chain) {
       const L = num(typed);
       if (!(L > 0.05)) return setTyped('');
       let dir = cur ? sub(cur, chain) : { x: 1, y: 0 };
@@ -546,9 +564,7 @@ export function Plan2D() {
       if (shiftKey) dir = Math.abs(dir.x) >= Math.abs(dir.y) ? { x: Math.sign(dir.x) || 1, y: 0 } : { x: 0, y: Math.sign(dir.y) || 1 };
       const end = add(chain, mul(normalize(dir), L));
       const endR = { x: Math.round(end.x * 1e4) / 1e4, y: Math.round(end.y * 1e4) / 1e4 };
-      update((d) => {
-        addWall(d, chain, endR, { thickness: wallThickness, height: wallHeight });
-      });
+      update((d) => addSegment(d, chain, endR));
       setChain(endR);
       setTyped('');
       return;
@@ -649,7 +665,7 @@ export function Plan2D() {
   const cursorClass =
     tool === 'select' ? (dragKind === 'pan' ? 'grabbing' : 'default') : 'crosshair';
 
-  const drawingNow = (tool === 'wall' && chain) || (tool === 'room' && roomStart);
+  const drawingNow = ((tool === 'wall' || tool === 'fence') && chain) || (tool === 'room' && roomStart);
   const emptyLevel = Object.keys(plan.walls).length === 0;
 
   return (
@@ -662,7 +678,7 @@ export function Plan2D() {
       onPointerUp={onPointerUp}
       onPointerLeave={() => setHover(null)}
       onDoubleClick={() => {
-        if (tool === 'wall') setChain(null);
+        if (tool === 'wall' || tool === 'fence') setChain(null);
       }}
       onContextMenu={(e) => e.preventDefault()}
     >
@@ -672,6 +688,38 @@ export function Plan2D() {
             <line key={l.k} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.major ? '#c9d2de' : '#e3e8ef'} strokeWidth={1} vectorEffect="non-scaling-stroke" />
           ))}
         </g>
+
+        {/* terreno: contorno do lote, frente (rua) e recuo frontal */}
+        {site && siteCs.length === 4 && (() => {
+          const [f0, f1, , b0] = siteCs;
+          const inward = normalize(sub(b0, f0));
+          const r0 = add(f0, mul(inward, RECUO_FRONTAL));
+          const r1 = add(f1, mul(inward, RECUO_FRONTAL));
+          const mid = mul(add(f0, f1), 0.5);
+          const out = add(mid, mul(inward, -px(18)));
+          const ang = readable(deg(Math.atan2(f1.y - f0.y, f1.x - f0.x)));
+          const c = add(mul(add(siteCs[2], b0), 0.5), mul(inward, -0.8));
+          return (
+            <g pointerEvents="none">
+              <polygon points={pts(siteCs)} fill="#9cc56b" fillOpacity={0.12} stroke="#5c940d" strokeWidth={1.5} strokeDasharray="10 5" vectorEffect="non-scaling-stroke" />
+              <line x1={f0.x} y1={f0.y} x2={f1.x} y2={f1.y} stroke="#5c940d" strokeWidth={4} vectorEffect="non-scaling-stroke" />
+              <line x1={r0.x} y1={r0.y} x2={r1.x} y2={r1.y} stroke="#5c940d" strokeWidth={1} strokeDasharray="3 4" vectorEffect="non-scaling-stroke" />
+              <g transform={`translate(${out.x} ${out.y}) rotate(${ang})`}>
+                <text fontSize={px(12)} textAnchor="middle" dominantBaseline="middle" fill="#2b8a3e" fontWeight={700} className="dim-text">
+                  RUA · frente {fmtMeters(site.w)}
+                </text>
+              </g>
+              <g transform={`translate(${(r0.x + r1.x) / 2} ${(r0.y + r1.y) / 2}) rotate(${ang})`}>
+                <text y={px(-4)} fontSize={px(10)} textAnchor="middle" fill="#2b8a3e" className="dim-text">
+                  recuo frontal {fmtMeters(RECUO_FRONTAL)}
+                </text>
+              </g>
+              <text x={c.x} y={c.y} fontSize={px(11)} textAnchor="middle" fill="#2b8a3e" opacity={0.7} className="dim-text">
+                Terreno {fmtNumber(site.w)} × {fmtNumber(site.d)} m · {fmtArea(site.w * site.d)}
+              </text>
+            </g>
+          );
+        })()}
 
         {/* laje (piso disponível) do pavimento, vinda dos cômodos de baixo */}
         <g pointerEvents="none">
@@ -928,13 +976,13 @@ export function Plan2D() {
         )}
 
         {/* pré-visualização da parede */}
-        {tool === 'wall' && snap && (
+        {(tool === 'wall' || tool === 'fence') && snap && (
           <g pointerEvents="none">
             {chain &&
               (() => {
                 const L = dist(chain, snap.point);
                 if (L < 1e-6) return null;
-                const n = mul(perp(normalize(sub(snap.point, chain))), wallThickness / 2);
+                const n = mul(perp(normalize(sub(snap.point, chain))), segThickness / 2);
                 const poly = [add(chain, n), add(snap.point, n), sub(snap.point, n), sub(chain, n)];
                 const mid = mul(add(chain, snap.point), 0.5);
                 const ang = readable(deg(Math.atan2(snap.point.y - chain.y, snap.point.x - chain.x)));
@@ -973,16 +1021,18 @@ export function Plan2D() {
     </svg>
 
     {/* caixa de medida digitada (estilo "VCB" do SketchUp) */}
-    {(tool === 'wall' || tool === 'room') && (
+    {(tool === 'wall' || tool === 'room' || tool === 'fence') && (
       <output className={`vcb ${typed ? 'typing' : ''}`}>
-        <b>{tool === 'wall' ? 'Comprimento' : 'Largura x profundidade'}</b>
+        <b>{tool !== 'room' ? 'Comprimento' : 'Largura x profundidade'}</b>
         <span className="vcb-value">{typed || (drawingNow ? '—' : '')}</span>
         <small>
           {!drawingNow
             ? tool === 'wall'
               ? 'Clique para começar a parede'
-              : 'Clique no primeiro canto do cômodo'
-            : tool === 'wall'
+              : tool === 'fence'
+                ? `Clique para começar: ${CATALOG_BY_ID[fenceType]?.name ?? 'muro'}`
+                : 'Clique no primeiro canto do cômodo'
+            : tool !== 'room'
               ? 'Digite a medida (ex.: 3,5) e Enter • Shift trava 0°/90° • Esc termina'
               : 'Clique no canto oposto ou digite 4x3 e Enter'}
         </small>

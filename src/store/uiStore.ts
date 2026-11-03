@@ -1,7 +1,8 @@
 import { create } from 'zustand';
+import { CATALOG_BY_ID } from '../catalog/catalog';
 import type { OpeningStyle, Selection } from '../model/types';
 
-export type Tool = 'select' | 'wall' | 'room' | 'door' | 'window' | 'furniture' | 'pencil' | 'arrow' | 'text' | 'measure';
+export type Tool = 'select' | 'wall' | 'fence' | 'room' | 'door' | 'window' | 'furniture' | 'pencil' | 'arrow' | 'text' | 'measure';
 export type StructTool = 'select' | 'pillar' | 'beam';
 export type ViewMode = '2d' | 'split' | '3d';
 
@@ -39,6 +40,8 @@ interface UIState {
   toast: string | null;
   /** Plano pronto (garagem, quarto…) aguardando o clique na planta. */
   roomPreset: string | null;
+  /** Tipo de muro/cerca da ferramenta Muro/cerca. */
+  fenceType: string;
   /** Incrementado para pedir que as vistas reenquadrem a planta. */
   fitToken: number;
   setTool: (tool: Tool) => void;
@@ -47,7 +50,7 @@ interface UIState {
   pickCatalog: (id: string) => void;
   setWallDefaults: (p: { thickness?: number; height?: number }) => void;
   toggleCutWalls: () => void;
-  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'annotColor' | 'toast' | 'doorStyle' | 'windowStyle' | 'roomPreset'>>) => void;
+  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'annotColor' | 'toast' | 'doorStyle' | 'windowStyle' | 'roomPreset' | 'fenceType'>>) => void;
   requestFit: () => void;
 }
 
@@ -72,11 +75,13 @@ export const useUI = create<UIState>()((set) => ({
   windowStyle: 'janela_correr',
   toast: null,
   roomPreset: null,
+  fenceType: 'muro_bloco',
   fitToken: 0,
   setTool: (tool) => set((s) => ({ tool, catalogId: tool === 'furniture' ? s.catalogId : null, roomPreset: tool === 'room' ? s.roomPreset : null })),
   select: (selection) => set({ selection }),
   setViewMode: (viewMode) => set({ viewMode }),
-  pickCatalog: (id) => set({ tool: 'furniture', catalogId: id, selection: null, roomPreset: null }),
+  pickCatalog: (id) =>
+    set(CATALOG_BY_ID[id]?.fence ? { tool: 'fence', fenceType: id, catalogId: null, selection: null, roomPreset: null } : { tool: 'furniture', catalogId: id, selection: null, roomPreset: null }),
   setWallDefaults: (p) =>
     set((s) => ({ wallThickness: p.thickness ?? s.wallThickness, wallHeight: p.height ?? s.wallHeight })),
   toggleCutWalls: () => set((s) => ({ cutWalls: !s.cutWalls })),

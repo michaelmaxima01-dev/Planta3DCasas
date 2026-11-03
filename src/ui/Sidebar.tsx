@@ -7,6 +7,7 @@ import { NumberField } from './Fields';
 import { LevelBar } from './LevelBar';
 import { OPENING_STYLES } from '../model/openings';
 import { RoofPanel } from './RoofPanel';
+import { SitePanel } from './SitePanel';
 import { fmtNumber } from './format';
 
 const ANNOT_TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
@@ -20,6 +21,7 @@ const ANNOT_COLORS = ['#e03131', '#1971c2', '#2f9e44', '#f08c00', '#7048e8', '#2
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
   { id: 'select', label: 'Selecionar', key: 'V', icon: '➤' },
   { id: 'wall', label: 'Parede', key: 'W', icon: '▬' },
+  { id: 'fence', label: 'Muro / cerca', key: 'U', icon: '▤' },
   { id: 'room', label: 'Cômodo (retângulo)', key: 'C', icon: '▭' },
   { id: 'door', label: 'Porta', key: 'D', icon: '◜' },
   { id: 'window', label: 'Janela', key: 'J', icon: '▭' },
@@ -45,6 +47,7 @@ export function Sidebar() {
   const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
   const items = CATALOG.filter((c) => norm(`${c.name} ${c.category}`).includes(norm(filter)));
   const roomPreset = useUI((s) => s.roomPreset);
+  const fenceType = useUI((s) => s.fenceType);
   const [presetGroup, setPresetGroup] = useState<string | null>(null);
 
   return (
@@ -106,6 +109,29 @@ export function Sidebar() {
         </section>
       )}
 
+      {tool === 'fence' && (
+        <section>
+          <h3>Tipo de muro / cerca</h3>
+          <div className="tools">
+            {CATALOG.filter((c) => c.fence).map((c) => (
+              <button key={c.id} className={fenceType === c.id ? 'active' : ''} onClick={() => setUI({ fenceType: c.id })}>
+                {c.name}
+                <kbd>{fmtNumber(c.height)} m</kbd>
+              </button>
+            ))}
+          </div>
+          <h3>Portões (clique sobre o muro)</h3>
+          <div className="tools">
+            {CATALOG.filter((c) => c.gate).map((c) => (
+              <button key={c.id} onClick={() => pickCatalog(c.id)}>
+                {c.name}
+                <kbd>{fmtNumber(c.width)} m</kbd>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
+
       {(tool === 'wall' || tool === 'room') && (
         <section>
           <h3>Nova parede</h3>
@@ -145,6 +171,8 @@ export function Sidebar() {
           );
         })}
       </section>
+
+      <SitePanel />
 
       <RoofPanel />
 

@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { CATALOG_BY_ID } from '../catalog/catalog';
+import { CATALOG, CATALOG_BY_ID } from '../catalog/catalog';
 import { detectRooms } from '../geometry/rooms';
 import { dist } from '../geometry/vec';
 import { clampOpeningOffset } from '../geometry/walls';
@@ -111,7 +111,25 @@ export function PropertiesPanel() {
         return (
           <>
             <h3>{item?.name ?? 'Móvel'}</h3>
-            <NumberField label="Largura" value={f.width} min={0.05} max={20} onCommit={(v) => set({ width: v })} />
+            {(item?.fence || item?.gate) && (
+              <label className="select-field">
+                <span>Tipo</span>
+                <select
+                  value={f.catalogId}
+                  onChange={(e) => {
+                    const c = CATALOG_BY_ID[e.target.value];
+                    set({ catalogId: c.id, depth: c.depth, height: c.height });
+                  }}
+                >
+                  {CATALOG.filter((c) => (item.fence ? c.fence : c.gate)).map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+            <NumberField label={item?.fence ? 'Comprimento' : 'Largura'} value={f.width} min={0.05} max={item?.fence ? 500 : 20} onCommit={(v) => set({ width: v })} />
             <NumberField label="Profundidade" value={f.depth} min={0.05} max={20} onCommit={(v) => set({ depth: v })} />
             <NumberField label="Altura" value={f.height} min={0.01} max={10} onCommit={(v) => set({ height: v })} />
             <NumberField label="Elevação" value={f.elevation} min={0} max={10} onCommit={(v) => set({ elevation: v })} />
@@ -130,7 +148,13 @@ export function PropertiesPanel() {
                 ⧉ Duplicar
               </button>
             </div>
-            <p className="hint">Perto de uma parede o móvel encosta sozinho. Segure Alt para soltar livre.</p>
+            <p className="hint">
+              {item?.fence
+                ? 'Arraste as alças das pontas para esticar o muro. Setas do teclado movem 1 cm (Shift = 10 cm).'
+                : item?.gate
+                  ? 'Portão: escolha no catálogo e clique sobre um muro para abrir o vão automaticamente.'
+                  : 'Perto de uma parede o móvel encosta sozinho. Segure Alt para soltar livre. Ctrl+C / Ctrl+V copia, até para outro andar.'}
+            </p>
           </>
         );
       }
