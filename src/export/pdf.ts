@@ -27,7 +27,16 @@ export interface PdfOptions {
 export interface PdfImages {
   /** JPEG/PNG em data URL. */
   cover?: string;
-  views?: { title: string; src: string }[];
+  views?: PdfView[];
+}
+
+export interface PdfView {
+  title: string;
+  src: string;
+  /** Agrupa as vistas em folhas (ex.: "Fachadas"). */
+  group?: string;
+  /** Ângulo da câmera em planta (0 = frente), desenha o mini-mapa de orientação. */
+  angle?: number;
 }
 
 const SCALES = [20, 25, 50, 75, 100, 125, 150, 200, 250, 500, 1000];
@@ -321,11 +330,12 @@ export function buildPdf(levels: Level[], o: PdfOptions, images: PdfImages = {})
   };
   const doc = new Doc(o.paper, o.meta);
   coverSheet(doc, merged, o, images);
+  // vistas logo após a capa: é o que o cliente olha primeiro
+  if (o.views3d && images.views?.length) viewsSheet(doc, images.views);
   for (const { level, sch } of perLevel) planSheet(doc, level.plan, sch, o, multi ? `Planta baixa - ${level.name}` : 'Planta baixa');
   tablesSheet(doc, merged);
   if (o.roomPages) for (const { level, sch } of perLevel) for (const r of sch.rooms) roomSheet(doc, level.plan, sch, r.room.id, multi ? level.name : '');
   if (o.furnitureList && merged.furniture.length) furnitureSheet(doc, merged);
-  if (o.views3d && images.views?.length) viewsSheet(doc, images.views);
   o.extraSheets?.(doc);
   doc.finish();
   return doc.pdf;
@@ -535,18 +545,44 @@ function furnitureSheet(doc: Doc, sch: ProjectSchedule) {
   );
 }
 
-function viewsSheet(doc: Doc, views: { title: string; src: string }[]) {
-  for (let i = 0; i < views.length; i += 2) {
-    doc.newSheet('Vistas 3D');
-    const a = doc.area;
-    const pair = views.slice(i, i + 2);
-    const w = (a.w - 8) / pair.length;
-    pair.forEach((v, j) => {
-      const x = a.x + j * (w + 8);
-      doc.text(v.title, x, a.y + 2, 3, { bold: true });
-      doc.image(v.src, { x, y: a.y + 8, w, h: a.h - 8 }, 1.6);
-    });
+function viewsSheet(doc: Doc, views: PdfView[]) {
+  const groups = [...new Set(views.map((v) => v.group ?? 'Vistas 3D'))];
+  for (const g of groups) {
+    const list = views.filter((v) => (v.group ?? 'Vistas 3D') === g);
+    const grid = list.length >= 4;
+    const per = grid ? 4 : 2;
+    for (let i = 0; i < list.length; i += per) {
+      const pages = Math.ceil(list.length / per);
+      doc.newSheet(pages > 1 ? `${g} (${i / per + 1}/${pages})` : g);
+      const a = doc.area;
+      const gap = 6;
+      const cols = 2;
+      const rows = grid ? 2 : 1;
+      const cw = (a.w - gap) / cols;
+      const ch = (a.h - gap * (rows - 1)) / rows;
+      list.slice(i, i + per).forEach((v, j) => {
+        const x = a.x + (j % cols) * (cw + gap);
+        const y = a.y + Math.floor(j / cols) * (ch + gap);
+        doc.text(v.title, x, y + 3, 3.2, { bold: true });
+        if (v.angle !== undefined) orientation(doc, x + cw - 6, y + 4, 4, v.angle);
+        const box = { x, y: y + 8, w: cw, h: ch - 8 };
+        doc.image(v.src, box, 1.6);
+      });
+    }
   }
+}
+
+/** Mini-mapa: quadrado = casa, ponto = posição do observador, "F" = frente (rua). */
+function orientation(doc: Doc, cx: number, cy: number, r: number, angle: number) {
+  const p = doc.pdf;
+  p.setDrawColor('#9aa3ad');
+  p.setLineWidth(0.2);
+  p.circle(cx, cy, r, 'S');
+  p.setFillColor('#c9d1da');
+  p.rect(cx - r * 0.35, cy - r * 0.35, r * 0.7, r * 0.7, 'F');
+  p.setFillColor('#2f7cf6');
+  p.circle(cx + Math.sin(angle) * r, cy + Math.cos(angle) * r, 0.9, 'F');
+  doc.text('F', cx, cy + r + 2.6, 1.8, { align: 'center', color: MUTED });
 }
 
 /** Agrupa móveis iguais (mesmo ambiente, item e medidas) com quantidade. */

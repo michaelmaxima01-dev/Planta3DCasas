@@ -204,3 +204,8 @@ O `.htaccess` incluso ativa compressão e cache. Para forçar HTTPS, descomente 
 - **Quantitativo "Muros e cercas"**: blocos, argamassa, pilaretes, cintas, brocas, aço, pintura, gradil, tela, mourões e portões. Camada **MUROS** no DXF.
 - **Novas categorias**: Fachada e entrada (caixa de correio, lixeira suspensa, interfone, padrão de energia, hidrômetro, abrigo de gás, caixa d'água, placas solares, aquecedor solar, condensadora, cobertura de garagem, concregrama…) e Pets e lazer (casinha, canil, cama elástica, ping-pong, fogo de chão…).
 - **Editor**: Ctrl+C / Ctrl+V (inclusive para outro andar) e setas do teclado para mover 1 cm (Shift = 10 cm).
+
+## v8.0: vistas ao redor da casa no PDF e visual novo
+
+- **PDF**: logo após a capa, 8 perspectivas ao redor da casa (a cada 45°, com mini-mapa de onde a foto foi tirada), 4 fachadas ortogonais (frontal, posterior e laterais, sem os muros na frente) e 2 vistas aéreas (perspectiva e cobertura com o terreno inteiro). A "frente" segue o lado da rua do terreno.
+- **Visual**: barra superior com ícones e grupos, botões com hover e foco, painéis em cartões, campos e seletores redesenhados, busca com lupa. Em telas menores os botões secundários ficam só com ícone (dica ao passar o mouse).

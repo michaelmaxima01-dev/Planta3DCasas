@@ -3,7 +3,7 @@ import { buildDrawing } from '../export/drawing';
 import { type DxfUnit, buildDxf, dxfToBytes } from '../export/dxf';
 import { type Paper, buildPdf } from '../export/pdf';
 import { buildSchedule } from '../export/schedule';
-import { renderViews } from '../export/snapshots';
+import { renderTour } from '../export/snapshots';
 import { DEFAULT_META } from '../model/finishes';
 import type { ProjectMeta } from '../model/types';
 import { selectLevel, usePlan } from '../store/planStore';
@@ -99,8 +99,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     setDone(null);
     await new Promise((r) => setTimeout(r, 30)); // deixa a interface mostrar "Gerando…"
     try {
-      const shots = renderViews(building.levels, views3d ? ['front', 'back', 'top'] : ['front'], 1600, 1000, building);
-      const titles = ['Perspectiva frontal', 'Perspectiva posterior', 'Vista superior'];
+      const tour = renderTour(building, { full: views3d });
       const pdf = buildPdf(
         building.levels,
         {
@@ -112,7 +111,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           meta,
           extraSheets: pdfStructure && hasStructure ? (doc) => appendStructuralSheets(doc, building, cachedAnalysis(building)) : undefined,
         },
-        { cover: shots[0], views: views3d ? shots.map((src, i) => ({ title: titles[i], src })) : [] },
+        { cover: tour.cover, views: tour.shots },
       );
       pdf.save(`${fileBase}.pdf`);
       setDone(`PDF gerado: ${pdf.getNumberOfPages()} folhas (${fileBase}.pdf)`);
@@ -197,7 +196,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                   <input type="checkbox" checked={furnitureList} onChange={(e) => setFurnitureList(e.target.checked)} /> Lista de mobiliário
                 </label>
                 <label className="check">
-                  <input type="checkbox" checked={views3d} onChange={(e) => setViews3d(e.target.checked)} /> Vistas 3D
+                  <input type="checkbox" checked={views3d} onChange={(e) => setViews3d(e.target.checked)} /> Vistas 3D ao redor da casa (8 perspectivas, 4 fachadas e vistas aéreas)
                 </label>
                 <label className="check" title={hasStructure ? '' : 'Gere a estrutura na aba Estrutura'}>
                   <input type="checkbox" disabled={!hasStructure} checked={pdfStructure && hasStructure} onChange={(e) => setPdfStructure(e.target.checked)} /> Estrutura (fôrmas,

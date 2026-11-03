@@ -7,6 +7,7 @@ import { type ViewMode, useUI } from '../store/uiStore';
 import { ExportDialog } from './ExportDialog';
 import { APP_COMMIT, APP_VERSION } from '../version';
 import { logout } from './Login';
+import { Icon } from './icons';
 
 export function TopBar() {
   const canUndo = useStore(usePlan.temporal, (s) => s.pastStates.length > 0);
@@ -57,6 +58,7 @@ export function TopBar() {
   return (
     <header className="topbar">
       <div className="brand">
+        <span className="logo"><Icon name="logo" size={18} /></span>
         <b>Planta3D</b> <span>Casas</span>
         <small className="version" title={`Versão ${APP_VERSION} (commit ${APP_COMMIT})`}>
           v{APP_VERSION}
@@ -64,44 +66,44 @@ export function TopBar() {
       </div>
       <div className="group tabs">
         <button className={mode === 'arch' ? 'active' : ''} onClick={() => { setUI({ mode: 'arch' }); useUI.getState().select(null); }}>
-          Arquitetura
+          <Icon name="arch" /> Arquitetura
         </button>
         <button className={mode === 'struct' ? 'active' : ''} onClick={() => { setUI({ mode: 'struct' }); useUI.getState().select(null); }}>
-          Estrutura
+          <Icon name="struct" /> Estrutura
         </button>
       </div>
       <div className="group">
-        <button onClick={() => confirm('Começar um projeto em branco? O atual será substituído.') && replace(createBuilding())}>Novo</button>
-        <button onClick={() => confirm('Carregar o sobrado de exemplo? O projeto atual será substituído.') && replace(buildExampleBuilding())}>Exemplo</button>
-        <button onClick={() => fileRef.current?.click()}>Abrir</button>
-        <button onClick={save} title="Salva o arquivo do projeto (.json), que pode ser aberto de novo aqui">Salvar</button>
+        <button onClick={() => confirm('Começar um projeto em branco? O atual será substituído.') && replace(createBuilding())}><Icon name="plus" /> Novo</button>
+        <button onClick={() => confirm('Carregar o sobrado de exemplo? O projeto atual será substituído.') && replace(buildExampleBuilding())} title="Carregar o sobrado de exemplo"><Icon name="sparkle" /> <span className="lbl">Exemplo</span></button>
+        <button onClick={() => fileRef.current?.click()} title="Abrir projeto (.json)"><Icon name="folder" /> <span className="lbl">Abrir</span></button>
+        <button onClick={save} title="Salva o arquivo do projeto (.json), que pode ser aberto de novo aqui"><Icon name="save" /> Salvar</button>
         <button className="export-btn" onClick={() => setExporting(true)} title="PDF, AutoCAD (DXF) e outros formatos">
-          Exportar
+          <Icon name="export" /> Exportar
         </button>
         <input ref={fileRef} type="file" accept=".json,application/json" hidden onChange={(e) => e.target.files?.[0] && open(e.target.files[0])} />
       </div>
       <div className="group">
-        <button onClick={undo} disabled={!canUndo} title="Desfazer (Ctrl+Z)">↶ Desfazer</button>
-        <button onClick={redo} disabled={!canRedo} title="Refazer (Ctrl+Y)">↷ Refazer</button>
+        <button onClick={undo} disabled={!canUndo} title="Desfazer (Ctrl+Z)"><Icon name="undo" /> <span className="lbl">Desfazer</span></button>
+        <button onClick={redo} disabled={!canRedo} title="Refazer (Ctrl+Y)"><Icon name="redo" /> <span className="lbl">Refazer</span></button>
       </div>
       <div className="group segmented">
         {views.map((v) => (
           <button key={v.id} className={viewMode === v.id ? 'active' : ''} onClick={() => setViewMode(v.id)}>
-            {v.label}
+            <Icon name={v.id === '2d' ? 'plan' : v.id === '3d' ? 'cube' : 'split'} /> {v.label}
           </button>
         ))}
       </div>
       <div className="group">
         <button className={showAllLevels ? 'active' : ''} onClick={() => setUI({ showAllLevels: !showAllLevels })} title="No 3D, mostra também os pavimentos acima do que está sendo editado">
-          Ver andares de cima
+          <Icon name="layers" /> <span className="lbl">Ver andares de cima</span>
         </button>
         <button className={cutWalls ? 'active' : ''} onClick={toggleCutWalls} title="Corta as paredes a 1,2 m no 3D">
-          Paredes baixas
+          <Icon name="cut" /> <span className="lbl">Paredes baixas</span>
         </button>
-        <button onClick={requestFit} title="Enquadrar o projeto nas vistas">Enquadrar</button>
+        <button onClick={requestFit} title="Enquadrar o projeto nas vistas"><Icon name="fit" /> <span className="lbl">Enquadrar</span></button>
       </div>
-      <div className="group">
-        <button onClick={() => confirm('Sair do sistema? Salve o projeto antes, se precisar.') && logout()} title="Sair do sistema">⏻ Sair</button>
+      <div className="group group-end">
+        <button onClick={() => confirm('Sair do sistema? Salve o projeto antes, se precisar.') && logout()} title="Sair do sistema" className="logout-btn"><Icon name="power" /> <span className="lbl">Sair</span></button>
       </div>
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
     </header>
