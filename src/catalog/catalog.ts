@@ -202,6 +202,20 @@ export const CATALOG: CatalogItem[] = [
       S(0, 0, 0.12, 0.12, -0.03, 0.12, '#fff6df', 'glass'),
     ],
   },
+  {
+    id: 'stair', name: 'Escada reta', category: 'Circulação', width: 0.9, depth: 3.2, height: 2.95,
+    parts: (w, d, h) => {
+      const steps = Math.max(2, Math.round(h / 0.18));
+      const rise = h / steps;
+      const tread = d / steps;
+      const parts: Part[] = [];
+      for (let i = 0; i < steps; i++) {
+        parts.push(B(0, d / 2 - (i + 0.5) * tread, w, tread, 0, (i + 1) * rise, i % 2 ? '#c9b59a' : '#d4c2a8', 'wood'));
+      }
+      parts.push(B(w / 2 - 0.02, 0, 0.03, d, h * 0.5, 0.9, '#5b5f63', 'metal'));
+      return parts;
+    },
+  },
   // ---------- Jantar / Cozinha ----------
   {
     id: 'dining_table', name: 'Mesa de jantar', category: 'Cozinha', width: 1.6, depth: 0.9, height: 0.76,

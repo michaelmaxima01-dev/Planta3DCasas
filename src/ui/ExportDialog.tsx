@@ -6,7 +6,7 @@ import { buildSchedule } from '../export/schedule';
 import { renderViews } from '../export/snapshots';
 import { DEFAULT_META } from '../model/finishes';
 import type { ProjectMeta } from '../model/types';
-import { usePlan } from '../store/planStore';
+import { selectLevel, usePlan } from '../store/planStore';
 
 const META_FIELDS: { key: keyof ProjectMeta; label: string; placeholder: string }[] = [
   { key: 'title', label: 'Nome do projeto', placeholder: 'Residência Silva' },
@@ -51,9 +51,10 @@ function MetaField({ label, value, placeholder, onCommit }: { label: string; val
 }
 
 export function ExportDialog({ onClose }: { onClose: () => void }) {
-  const plan = usePlan((s) => s.plan);
-  const update = usePlan((s) => s.update);
-  const meta = { ...DEFAULT_META, ...plan.meta };
+  const building = usePlan((s) => s.building);
+  const level = usePlan(selectLevel);
+  const updateBuilding = usePlan((s) => s.updateBuilding);
+  const meta = { ...DEFAULT_META, ...building.meta };
 
   const [paper, setPaper] = useState<Paper>('A3');
   const [scale, setScale] = useState(0);
@@ -62,6 +63,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [views3d, setViews3d] = useState(true);
 
   const [unit, setUnit] = useState<DxfUnit>('m');
+  const [dxfLevel, setDxfLevel] = useState(level.id);
   const [dxfScale, setDxfScale] = useState(50);
   const [wallFill, setWallFill] = useState(true);
   const [dxfFurniture, setDxfFurniture] = useState(true);
@@ -78,22 +80,22 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   }, [onClose]);
 
   const setMeta = (key: keyof ProjectMeta, value: string) =>
-    update((d) => {
+    updateBuilding((d) => {
       d.meta = { ...DEFAULT_META, ...d.meta, [key]: value };
     });
 
   const fileBase = slugify(meta.title);
-  const empty = Object.keys(plan.walls).length === 0;
+  const empty = building.levels.every((l) => Object.keys(l.plan.walls).length === 0);
 
   const exportPdf = async () => {
     setBusy('pdf');
     setDone(null);
     await new Promise((r) => setTimeout(r, 30)); // deixa a interface mostrar "Gerando…"
     try {
-      const shots = renderViews(plan, views3d ? ['front', 'back', 'top'] : ['front']);
+      const shots = renderViews(building.levels, views3d ? ['front', 'back', 'top'] : ['front']);
       const titles = ['Perspectiva frontal', 'Perspectiva posterior', 'Vista superior'];
       const pdf = buildPdf(
-        plan,
+        building.levels,
         { paper, scale, roomPages, furnitureList, views3d, meta },
         { cover: shots[0], views: views3d ? shots.map((src, i) => ({ title: titles[i], src })) : [] },
       );
@@ -108,11 +110,13 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   };
 
   const exportDxf = () => {
-    const sch = buildSchedule(plan);
-    const drawing = buildDrawing(plan, sch, { scale: dxfScale, furniture: dxfFurniture, dimensions: dxfDims, texts: dxfTexts });
+    const dl = building.levels.find((l) => l.id === dxfLevel) ?? level;
+    const sch = buildSchedule(dl.plan);
+    const drawing = buildDrawing(dl.plan, sch, { scale: dxfScale, furniture: dxfFurniture, dimensions: dxfDims, texts: dxfTexts });
     const dxf = buildDxf(drawing, { unit, scale: dxfScale, wallFill });
-    download(dxfToBytes(dxf), 'application/dxf', `${fileBase}.dxf`);
-    setDone(`DXF gerado em ${unit === 'm' ? 'metros' : unit === 'cm' ? 'centímetros' : 'milímetros'} (${fileBase}.dxf)`);
+    const dxfName = building.levels.length > 1 ? `${fileBase}-${slugify(dl.name)}` : fileBase;
+    download(dxfToBytes(dxf), 'application/dxf', `${dxfName}.dxf`);
+    setDone(`DXF gerado em ${unit === 'm' ? 'metros' : unit === 'cm' ? 'centímetros' : 'milímetros'} (${dxfName}.dxf)`);
   };
 
   return (
@@ -130,7 +134,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
             <h3>Dados do carimbo e da capa</h3>
             <div className="meta-grid">
               {META_FIELDS.map((f) => (
-                <MetaField key={f.key} label={f.label} placeholder={f.placeholder} value={meta[f.key]} onCommit={(v) => setMeta(f.key, v)} />
+                <MetaField key={f.key} label={f.label} placeholder={f.placeholder} value={meta[f.key] ?? ""} onCommit={(v) => setMeta(f.key, v)} />
               ))}
             </div>
             <p className="hint">Esses dados ficam salvos no projeto.</p>
@@ -190,6 +194,18 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 Salvar como.
               </p>
               <div className="opts">
+                {building.levels.length > 1 && (
+                  <label>
+                    Pavimento
+                    <select value={dxfLevel} onChange={(e) => setDxfLevel(e.target.value)}>
+                      {building.levels.map((l) => (
+                        <option key={l.id} value={l.id}>
+                          {l.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                )}
                 <label>
                   Unidade
                   <select value={unit} onChange={(e) => setUnit(e.target.value as DxfUnit)}>

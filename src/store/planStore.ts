@@ -1,43 +1,70 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
-import { buildExamplePlan } from '../model/example';
-import type { Plan } from '../model/types';
+import { buildExampleBuilding, migrate, restack } from '../model/building';
+import type { Building, Level, Plan } from '../model/types';
 
-const STORAGE_KEY = 'planta3d:plan:v1';
+const STORAGE_KEY = 'planta3d:building:v2';
+const LEGACY_KEY = 'planta3d:plan:v1';
 
 interface PlanState {
-  plan: Plan;
-  /** Aplica uma edição sobre um clone da planta (vira um passo do desfazer). */
+  building: Building;
+  /** Pavimento sendo editado (não entra no histórico). */
+  levelId: string;
+  /** Edita a planta do pavimento ativo (vira um passo do desfazer). */
   update: (fn: (draft: Plan) => void) => void;
-  setPlan: (plan: Plan) => void;
+  /** Edita o edifício inteiro: pavimentos, estrutura, dados do projeto. */
+  updateBuilding: (fn: (draft: Building) => void) => void;
+  setBuilding: (b: Building) => void;
+  setLevel: (id: string) => void;
 }
 
-function loadInitial(): Plan {
+export const selectLevel = (s: Pick<PlanState, 'building' | 'levelId'>): Level =>
+  s.building.levels.find((l) => l.id === s.levelId) ?? s.building.levels[0];
+export const selectPlan = (s: Pick<PlanState, 'building' | 'levelId'>): Plan => selectLevel(s).plan;
+
+function loadInitial(): Building {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const p = JSON.parse(raw) as Plan;
-      if (p && p.version === 1 && p.nodes && p.walls) return p;
+    for (const key of [STORAGE_KEY, LEGACY_KEY]) {
+      const raw = localStorage.getItem(key);
+      const b = raw ? migrate(JSON.parse(raw)) : null;
+      if (b) return b;
     }
   } catch {
     // sem localStorage (testes) ou JSON inválido: começa pelo exemplo
   }
-  return buildExamplePlan();
+  return buildExampleBuilding();
 }
+
+const initial = loadInitial();
 
 export const usePlan = create<PlanState>()(
   temporal(
     (set) => ({
-      plan: loadInitial(),
+      building: initial,
+      levelId: initial.levels[0].id,
       update: (fn) =>
         set((s) => {
-          const draft = structuredClone(s.plan);
+          const level = selectLevel(s);
+          const draft = structuredClone(level.plan);
           fn(draft);
-          return { plan: draft };
+          return { building: { ...s.building, levels: s.building.levels.map((l) => (l.id === level.id ? { ...l, plan: draft } : l)) } };
         }),
-      setPlan: (plan) => set({ plan }),
+      updateBuilding: (fn) =>
+        set((s) => {
+          const draft = structuredClone(s.building);
+          fn(draft);
+          restack(draft);
+          const levelId = draft.levels.some((l) => l.id === s.levelId) ? s.levelId : draft.levels[0].id;
+          return { building: draft, levelId };
+        }),
+      setBuilding: (building) => set({ building, levelId: building.levels[0].id }),
+      setLevel: (levelId) => set({ levelId }),
     }),
-    { partialize: (s) => ({ plan: s.plan }), limit: 200 },
+    {
+      partialize: (s) => ({ building: s.building }),
+      equality: (a, b) => a.building === b.building,
+      limit: 200,
+    },
   ),
 );
 
@@ -49,20 +76,20 @@ export const clearHistory = () => usePlan.temporal.getState().clear();
  * Gestos de arrastar: durante o arraste a planta muda a cada movimento do mouse, mas
  * no histórico entra um único passo (estado antes → estado depois).
  */
-let gestureStart: Plan | null = null;
+let gestureStart: Building | null = null;
 export function beginGesture() {
   if (gestureStart) return;
-  gestureStart = usePlan.getState().plan;
+  gestureStart = usePlan.getState().building;
   usePlan.temporal.getState().pause();
 }
 export function endGesture() {
   if (!gestureStart) return;
   const start = gestureStart;
   gestureStart = null;
-  const final = usePlan.getState().plan;
-  usePlan.setState({ plan: start });
+  const final = usePlan.getState().building;
+  usePlan.setState({ building: start });
   usePlan.temporal.getState().resume();
-  if (final !== start) usePlan.setState({ plan: final });
+  if (final !== start) usePlan.setState({ building: final });
 }
 
 let saveTimer: ReturnType<typeof setTimeout> | undefined;
@@ -70,7 +97,7 @@ usePlan.subscribe((s) => {
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(s.plan));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(s.building));
     } catch {
       // armazenamento indisponível ou cheio
     }

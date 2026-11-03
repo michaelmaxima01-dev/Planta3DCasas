@@ -78,7 +78,7 @@ export function furnitureName(f: FurnitureItem): string {
   return CATALOG_BY_ID[f.catalogId]?.name ?? f.catalogId;
 }
 
-export function buildSchedule(plan: Plan): ProjectSchedule {
+export function buildSchedule(plan: Plan, counters: { door: number; window: number } = { door: 0, window: 0 }): ProjectSchedule {
   const geoms = computeWallGeometry(plan);
   const rooms = detectRooms(plan);
 
@@ -87,8 +87,8 @@ export function buildSchedule(plan: Plan): ProjectSchedule {
     .filter((op) => geoms[op.wallId])
     .map((op) => ({ op, center: openingCenter(geoms[op.wallId], op) }))
     .sort((p, q) => Math.round(p.center.y * 100) - Math.round(q.center.y * 100) || p.center.x - q.center.x);
-  let doors = 0;
-  let windows = 0;
+  let doors = counters.door;
+  let windows = counters.window;
   const openings: OpeningInfo[] = placed.map(({ op, center }) => {
     const g = geoms[op.wallId];
     const sides = [1, -1].map((s) => add(center, mul(g.normal, s * (g.thickness / 2 + 0.15))));
@@ -102,6 +102,8 @@ export function buildSchedule(plan: Plan): ProjectSchedule {
     };
   });
 
+  counters.door = doors;
+  counters.window = windows;
   const furnitureRows: FurnitureRow[] = [];
   const roomOf = (p: Vec2) => rooms.find((r) => pointInPolygon(p, r.inner) || pointInPolygon(p, r.polygon));
   const furnitureByRoom = new Map<string, FurnitureItem[]>();

@@ -1,12 +1,13 @@
 /** Gera imagens da casa em 3D (fora da tela) para o PDF. */
 import * as THREE from 'three';
 import { planBounds } from '../model/ops';
-import type { Plan } from '../model/types';
+import type { Level } from '../model/types';
 import { buildHouseGroup } from '../view3d/buildScene';
 
 export type ViewKind = 'front' | 'back' | 'top';
 
-export function renderViews(plan: Plan, views: ViewKind[], width = 1600, height = 1000): string[] {
+export function renderViews(levels: Level[], views: ViewKind[], width = 1600, height = 1000): string[] {
+  const plan = levels[0].plan;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(width, height, false);
   renderer.setPixelRatio(1);
@@ -39,17 +40,23 @@ export function renderViews(plan: Plan, views: ViewKind[], width = 1600, height 
   ground.position.set(cx, -0.01, cz);
   ground.receiveShadow = true;
   scene.add(ground);
-  scene.add(buildHouseGroup(plan, { lights: true }));
+  levels.forEach((l, i) => {
+    const g = buildHouseGroup(l.plan, { lights: true, slab: i > 0 });
+    g.position.y = l.elevation;
+    scene.add(g);
+  });
+  const top = levels[levels.length - 1];
+  const height3d = top.elevation + top.height;
 
   const camera = new THREE.PerspectiveCamera(40, width / height, 0.05, 500);
   const out: string[] = [];
   for (const v of views) {
-    if (v === 'front') camera.position.set(cx + r * 1.0, r * 1.4, cz + r * 1.5);
-    else if (v === 'back') camera.position.set(cx - r * 1.05, r * 1.4, cz - r * 1.45);
-    else camera.position.set(cx + 0.001, r * 2.1, cz + 0.001);
+    if (v === 'front') camera.position.set(cx + r * 1.0, r * 1.4 + height3d * 0.5, cz + r * 1.5);
+    else if (v === 'back') camera.position.set(cx - r * 1.05, r * 1.4 + height3d * 0.5, cz - r * 1.45);
+    else camera.position.set(cx + 0.001, r * 2.1 + height3d, cz + 0.001);
     camera.up.set(0, 1, 0);
     if (v === 'top') camera.up.set(0, 0, -1);
-    camera.lookAt(cx, 0, cz);
+    camera.lookAt(cx, v === 'top' ? 0 : height3d * 0.35, cz);
     renderer.render(scene, camera);
     out.push(renderer.domElement.toDataURL('image/jpeg', 0.9));
   }

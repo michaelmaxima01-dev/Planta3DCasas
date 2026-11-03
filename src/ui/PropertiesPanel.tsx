@@ -6,7 +6,7 @@ import { clampOpeningOffset } from '../geometry/walls';
 import { deleteSelection, duplicateFurniture, moveNode, setRoomLabel, setWallLength } from '../model/ops';
 import { FLOOR_FINISHES } from '../model/finishes';
 import type { Plan } from '../model/types';
-import { usePlan } from '../store/planStore';
+import { selectPlan, usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { NumberField, TextField } from './Fields';
 import { fmtArea, fmtMeters } from './format';
@@ -14,7 +14,7 @@ import { fmtArea, fmtMeters } from './format';
 const FLOOR_COLORS = FLOOR_FINISHES;
 
 export function PropertiesPanel() {
-  const plan = usePlan((s) => s.plan);
+  const plan = usePlan(selectPlan);
   const update = usePlan((s) => s.update);
   const selection = useUI((s) => s.selection);
   const select = useUI((s) => s.select);

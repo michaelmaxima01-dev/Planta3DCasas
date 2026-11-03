@@ -8,6 +8,11 @@ import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Sidebar } from './ui/Sidebar';
 import { TopBar } from './ui/TopBar';
 import { Scene3D } from './view3d/Scene3D';
+import { StructPanel } from './structure/StructPanel';
+import { StructPlan2D } from './structure/StructPlan2D';
+import { StructScene3D } from './structure/StructScene3D';
+import { StructSidebar } from './structure/StructSidebar';
+import { removePillar } from './structure/ops';
 
 const HINTS: Record<Tool, string> = {
   select:
@@ -18,11 +23,19 @@ const HINTS: Record<Tool, string> = {
   furniture: 'Clique na planta para posicionar • perto da parede ele encosta sozinho (Alt solta livre) • Esc cancela',
 };
 
+const STRUCT_HINTS: Record<'select' | 'pillar' | 'beam', string> = {
+  select: 'Clique em pilar, viga, laje ou sapata para ver a memória de cálculo • arraste um pilar para mover o eixo em todos os pavimentos • Delete exclui',
+  pillar: 'Clique para lançar um pilar (ele desce até a fundação) • encaixa em cantos e paredes • Esc volta',
+  beam: 'Clique em dois pilares para criar a viga entre eles • Esc volta',
+};
+
 const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', d: 'door', j: 'window' };
 
 export default function App() {
   const viewMode = useUI((s) => s.viewMode);
   const tool = useUI((s) => s.tool);
+  const mode = useUI((s) => s.mode);
+  const structTool = useUI((s) => s.structTool);
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -52,6 +65,21 @@ export default function App() {
         return;
       }
       if (mod || e.altKey) return;
+      if (ui.mode === 'struct') {
+        const st: Record<string, 'select' | 'pillar' | 'beam'> = { v: 'select', p: 'pillar', g: 'beam' };
+        if (st[key]) ui.set({ structTool: st[key] });
+        else if (e.key === 'Escape') {
+          if (ui.structTool !== 'select') ui.set({ structTool: 'select' });
+          else ui.select(null);
+        } else if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selection) {
+          e.preventDefault();
+          const sel = ui.selection;
+          if (sel.kind === 'pillar') usePlan.getState().updateBuilding((b) => removePillar(b, sel.id));
+          if (sel.kind === 'beam') usePlan.getState().updateBuilding((b) => void delete b.structure.beams[sel.id]);
+          ui.select(null);
+        }
+        return;
+      }
       if (KEY_TOOLS[key]) {
         ui.setTool(KEY_TOOLS[key]);
         return;
@@ -82,24 +110,24 @@ export default function App() {
     <div className="app">
       <TopBar />
       <div className="main">
-        <Sidebar />
+        {mode === 'arch' ? <Sidebar /> : <StructSidebar />}
         <div className={`views views-${viewMode}`}>
           {viewMode !== '3d' && (
             <div className="view">
-              <Plan2D />
-              <span className="view-label">Planta 2D</span>
+              {mode === 'arch' ? <Plan2D /> : <StructPlan2D />}
+              <span className="view-label">{mode === 'arch' ? 'Planta 2D' : 'Planta de fôrmas'}</span>
             </div>
           )}
           {viewMode !== '2d' && (
             <div className="view">
-              <Scene3D />
+              {mode === 'arch' ? <Scene3D /> : <StructScene3D />}
               <span className="view-label">3D • arraste para girar, botão direito para mover</span>
             </div>
           )}
         </div>
-        <PropertiesPanel />
+        {mode === 'arch' ? <PropertiesPanel /> : <StructPanel />}
       </div>
-      <footer className="statusbar">{HINTS[tool]}</footer>
+      <footer className="statusbar">{mode === 'arch' ? HINTS[tool] : STRUCT_HINTS[structTool]}</footer>
     </div>
   );
 }

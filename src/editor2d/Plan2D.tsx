@@ -16,7 +16,8 @@ import {
   wallsAtNode,
 } from '../model/ops';
 import type { OpeningKind, SelectionKind } from '../model/types';
-import { beginGesture, endGesture, usePlan } from '../store/planStore';
+import { levelBelow } from '../model/building';
+import { beginGesture, endGesture, selectPlan, usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { fmtArea, fmtMeters } from '../ui/format';
 import { ACCENT, FurnitureSymbol, OpeningSymbol } from './symbols';
@@ -39,7 +40,10 @@ const deg = (r: number) => (r * 180) / Math.PI;
 const readable = (d: number) => (d > 90 ? d - 180 : d <= -90 ? d + 180 : d);
 
 export function Plan2D() {
-  const plan = usePlan((s) => s.plan);
+  const plan = usePlan(selectPlan);
+  const below = usePlan((s) => levelBelow(s.building, s.levelId)?.plan);
+  const belowGeoms = useMemo(() => (below ? Object.values(computeWallGeometry(below)) : []), [below]);
+  const belowPoints = useMemo(() => (below ? Object.values(below.nodes) : []), [below]);
   const update = usePlan((s) => s.update);
   const tool = useUI((s) => s.tool);
   const selection = useUI((s) => s.selection);
@@ -82,7 +86,7 @@ export function Plan2D() {
 
   const fit = useCallback(() => {
     if (!size) return;
-    const b = planBounds(usePlan.getState().plan) ?? { minX: 0, minY: 0, maxX: 10, maxY: 8 };
+    const b = planBounds(selectPlan(usePlan.getState())) ?? { minX: 0, minY: 0, maxX: 10, maxY: 8 };
     const pad = 60;
     const w = Math.max(1, b.maxX - b.minX);
     const h = Math.max(1, b.maxY - b.minY);
@@ -205,7 +209,7 @@ export function Plan2D() {
     }
 
     if (tool === 'wall') {
-      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey });
+      const sn = snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints });
       if (!chain) {
         setChain(sn.point);
         return;
@@ -253,7 +257,7 @@ export function Plan2D() {
       return;
     }
     if (d?.kind === 'node') {
-      const sn = snapPoint(plan, p, { pxPerMeter: view.s, exclude: new Set([d.id]), disabled: e.altKey });
+      const sn = snapPoint(plan, p, { pxPerMeter: view.s, exclude: new Set([d.id]), disabled: e.altKey, extraPoints: belowPoints });
       d.snap = sn;
       setSnap(sn);
       update((draft) => moveNode(draft, d.id, sn.point));
@@ -302,7 +306,7 @@ export function Plan2D() {
       });
       return;
     }
-    if (tool === 'wall') setSnap(snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey }));
+    if (tool === 'wall') setSnap(snapPoint(plan, p, { pxPerMeter: view.s, anchor: chain, disabled: e.altKey, extraPoints: belowPoints }));
   };
 
   const onPointerUp = () => {
@@ -397,6 +401,13 @@ export function Plan2D() {
         <g pointerEvents="none">
           {grid?.map((l) => (
             <line key={l.k} x1={l.x1} y1={l.y1} x2={l.x2} y2={l.y2} stroke={l.major ? '#c9d2de' : '#e3e8ef'} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+          ))}
+        </g>
+
+        {/* pavimento de baixo, para alinhar paredes por cima */}
+        <g pointerEvents="none">
+          {belowGeoms.map((g) => (
+            <polygon key={`below-${g.id}`} points={pts(g.polygon)} fill="#9aa7b5" fillOpacity={0.28} stroke="#8796a6" strokeDasharray="4 3" strokeWidth={1} vectorEffect="non-scaling-stroke" />
           ))}
         </g>
 

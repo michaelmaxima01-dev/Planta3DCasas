@@ -22,6 +22,8 @@ export interface SnapOptions {
   exclude?: Set<string>;
   grid?: number;
   disabled?: boolean;
+  /** Pontos extras para encaixe (ex.: cantos do pavimento de baixo). */
+  extraPoints?: Vec2[];
 }
 
 const ANGLE_STEP = Math.PI / 4;
@@ -51,6 +53,9 @@ export function snapPoint(plan: Plan, raw: Vec2, o: SnapOptions): SnapResult {
     }
   }
   if (bestNode) return { point: { x: bestNode.x, y: bestNode.y }, nodeId: bestNode.id, guides: [] };
+  for (const q of o.extraPoints ?? []) {
+    if (dist(raw, q) < tolNode) return { point: { x: q.x, y: q.y }, guides: [] };
+  }
 
   let wallHit: { id: string; point: Vec2 } | null = null;
   let bestW = tolWall;

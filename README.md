@@ -17,7 +17,7 @@ pnpm build      # build de produção
 
 ## Roteiro de teste manual
 
-Ao abrir, aparece uma casa de exemplo (10 × 8 m, 4 cômodos, 27 móveis).
+Ao abrir, aparece um sobrado de exemplo (10 × 8 m, térreo + 1º andar, 9 cômodos).
 O projeto é salvo sozinho no navegador; **Exemplo** recarrega a casa e **Novo** começa do zero.
 
 | O que testar | Como |
@@ -52,6 +52,42 @@ Os dados do carimbo (projeto, cliente, endereço, responsável, CAU/CREA) são p
 **Testar:** Exportar → preencher o carimbo → *Baixar PDF* e *Baixar DXF*. Abrir o DXF no AutoCAD
 (ou no LibreCAD/DraftSight, que são gratuitos) e conferir camadas, blocos de móveis e o comando ÁREA num cômodo.
 
+## Pavimentos
+
+No painel **Pavimentos** (à esquerda): escolha o pavimento a editar, **+ Pavimento** cria um andar acima
+(copiando as paredes externas, todas as paredes ou vazio), e dá para renomear e mudar a altura piso a piso.
+Na planta, o pavimento de baixo aparece tracejado e os cantos dele servem de encaixe para alinhar as paredes.
+No 3D, **Todos os pavimentos** mostra também os andares acima do que está sendo editado.
+
+## Aba Estrutura (botão amarelo **Estrutura**)
+
+Pré-dimensionamento de concreto armado com alvenaria de vedação, da fundação à cobertura:
+
+1. **Gerar estrutura**: lança pilares nos cantos e encontros de paredes (contínuos até a fundação),
+   pilares intermediários quando o vão passa do máximo (evitando portas e janelas), vigas sobre as paredes de
+   cada pavimento, lajes em cada cômodo e baldrames sob o térreo; em seguida dimensiona as seções.
+2. **Tramitação das cargas**: laje → vigas → pilares → pilar de baixo (ou viga de transição) → pilar do
+   térreo + baldrames → fundação → solo. Um teste automático garante que toda a carga chega à fundação.
+3. **Verificação** (verde atende / amarelo atenção / vermelho não atende):
+   - lajes por vão (maciça ou treliçada H8 a H20), cargas de peso próprio, revestimento, uso e cobertura;
+   - vigas biapoiadas: momento, cortante, armadura de flexão, estribos, biela, altura x vão;
+   - pilares por área de influência (coeficientes de canto/extremidade/interno), γn, armadura, esbeltez,
+     seção mínima;
+   - fundação: sapatas pela tensão admissível do solo (com aviso de sobreposição), radier ou estacas;
+   - paredes do andar de cima sem viga embaixo, pilares sem caminho até a fundação, carga média por m².
+4. Clique em qualquer peça para ver a **memória de cálculo** e editar a seção; arraste pilares
+   (o eixo se move em todos os pavimentos); ferramentas **Pilar** (P) e **Viga** (G) para lançamento manual.
+5. Parâmetros editáveis: solo e tensão admissível, tipo de fundação, profundidade, concreto (C20 a C40),
+   tipo de laje, cobertura, sobrecarga, revestimento, peso da alvenaria e vão máximo entre pilares.
+6. **Relatório estrutural (PDF)**: premissas, pendências, plantas de fôrmas por pavimento, locação da
+   fundação, tabelas de lajes/vigas/pilares/fundações, caminho das cargas e **termo de responsabilidade
+   técnica com campo de assinatura** do engenheiro (nome, CREA e ART preenchidos no painel).
+
+Critérios simplificados das NBR 6118, 6120, 6122 e 8681; a validação final e a assinatura são do
+engenheiro responsável, e a tensão admissível do solo deve vir de sondagem SPT.
+
+Exemplos prontos em `exemplos/`: caderno do projeto, DXF do térreo e relatório estrutural do sobrado.
+
 ## Organização do código
 
 ```
@@ -67,6 +103,7 @@ src/
   editor2d/    planta 2D em SVG (ferramentas, cotas, símbolos)
   view3d/      cena 3D (paredes, pisos, aberturas, móveis, luzes)
   export/      levantamento (schedule), desenho técnico comum (drawing), PDF, DXF e imagens 3D
+  structure/   modelo estrutural, lançamento automático, análise/verificação, relatório e telas da aba Estrutura
   ui/          barra superior, ferramentas/catálogo, painel de propriedades, janela de exportação
 ```
 

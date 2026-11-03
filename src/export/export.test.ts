@@ -61,7 +61,7 @@ describe('PDF', () => {
   it('gera o caderno com capa, planta, quadros, cômodos e mobiliário', async () => {
     const { buildPdf, pickScale } = await import('./pdf');
     const meta = { title: 'Casa Exemplo', client: 'Maria Souza', address: 'Rua das Flores, 123 - São Paulo/SP', author: 'Arq. João Lima', registry: 'CAU A12345-6', notes: '' };
-    const pdf = buildPdf(plan, { paper: 'A3', scale: 0, roomPages: true, furnitureList: true, views3d: false, meta });
+    const pdf = buildPdf([{ id: 't', name: 'Térreo', elevation: 0, height: 2.95, plan }], { paper: 'A3', scale: 0, roomPages: true, furnitureList: true, views3d: false, meta });
     if (process.env.DUMP_DIR) writeFileSync(`${process.env.DUMP_DIR}/caderno.pdf`, Buffer.from(pdf.output('arraybuffer')));
     // capa + planta + quadros + 4 cômodos + mobiliário
     expect(pdf.getNumberOfPages()).toBe(8);

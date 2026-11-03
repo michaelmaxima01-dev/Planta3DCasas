@@ -7,8 +7,9 @@ import { type Room, detectRooms } from '../geometry/rooms';
 import type { Vec2 } from '../geometry/vec';
 import { type WallGeom, computeWallGeometry, openingCenter, wallPrisms } from '../geometry/walls';
 import { planBounds } from '../model/ops';
-import type { FurnitureItem, Opening, Plan, Selection } from '../model/types';
-import { usePlan } from '../store/planStore';
+import type { Building, FurnitureItem, Opening, Plan, Selection } from '../model/types';
+import { prismGeometry } from './buildScene';
+import { selectPlan, usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import {
   doorLeafMaterial,
@@ -35,15 +36,6 @@ const clickHandler = (select: Select, sel: Selection) => (e: ThreeEvent<MouseEve
   select(sel);
 };
 
-/** Extruda um contorno da planta entre duas alturas. Planta (x, y) → mundo (x, altura, y). */
-function prismGeometry(poly: Vec2[], bottom: number, top: number): THREE.BufferGeometry {
-  const shape = new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.y)));
-  const g = new THREE.ExtrudeGeometry(shape, { depth: top - bottom, bevelEnabled: false });
-  g.rotateX(Math.PI / 2);
-  g.translate(0, top, 0);
-  return g;
-}
-
 function computeFrame(plan: Plan) {
   const b = planBounds(plan) ?? { minX: 0, minY: 0, maxX: 10, maxY: 8 };
   const cx = (b.minX + b.maxX) / 2;
@@ -53,8 +45,9 @@ function computeFrame(plan: Plan) {
 }
 
 export function Scene3D() {
-  const plan = usePlan((s) => s.plan);
-  const [frame] = useState(() => computeFrame(usePlan.getState().plan));
+  const building = usePlan((s) => s.building);
+  const levelId = usePlan((s) => s.levelId);
+  const [frame] = useState(() => computeFrame(selectPlan(usePlan.getState())));
   return (
     <Canvas
       shadows="percentage"
@@ -62,28 +55,28 @@ export function Scene3D() {
       camera={{ position: frame.camera.toArray(), fov: 45, near: 0.05, far: 500 }}
       onPointerMissed={(e) => e.type === 'click' && useUI.getState().select(null)}
     >
-      <SceneContents plan={plan} initialTarget={frame.center} />
+      <SceneContents building={building} levelId={levelId} initialTarget={frame.center} />
     </Canvas>
   );
 }
 
-function SceneContents({ plan, initialTarget }: { plan: Plan; initialTarget: THREE.Vector3 }) {
+const noSelect: Select = () => {};
+const SLAB_T = 0.12;
+
+function SceneContents({ building, levelId, initialTarget }: { building: Building; levelId: string; initialTarget: THREE.Vector3 }) {
   const selection = useUI((s) => s.selection);
   const select = useUI((s) => s.select);
   const cutWalls = useUI((s) => s.cutWalls);
   const fitToken = useUI((s) => s.fitToken);
+  const showAllLevels = useUI((s) => s.showAllLevels);
 
-  const geoms = useMemo(() => computeWallGeometry(plan), [plan]);
-  const rooms = useMemo(() => detectRooms(plan), [plan]);
-  const openingsByWall = useMemo(() => {
-    const m: Record<string, Opening[]> = {};
-    for (const op of Object.values(plan.openings)) (m[op.wallId] ??= []).push(op);
-    return m;
-  }, [plan.openings]);
+  const active = building.levels.find((l) => l.id === levelId) ?? building.levels[0];
+  const activeIndex = building.levels.indexOf(active);
+  const visible = building.levels.filter((_, i) => showAllLevels || i <= activeIndex);
 
   useEffect(() => setWallCut(cutWalls), [cutWalls]);
 
-  const frame = useMemo(() => computeFrame(plan), [plan]);
+  const frame = useMemo(() => computeFrame(building.levels[0].plan), [building.levels]);
   const [target] = useState(() => new THREE.Object3D());
   const [orbitTarget] = useState(() => initialTarget.toArray());
 
@@ -97,17 +90,17 @@ function SceneContents({ plan, initialTarget }: { plan: Plan; initialTarget: THR
       <directionalLight
         castShadow
         target={target}
-        position={[frame.center.x + frame.radius * 0.8, frame.radius * 2.2, frame.center.z + frame.radius * 0.5]}
+        position={[frame.center.x + frame.radius * 0.8, frame.radius * 2.6, frame.center.z + frame.radius * 0.5]}
         intensity={2.2}
         shadow-mapSize={[2048, 2048]}
         shadow-bias={-0.0004}
         shadow-normalBias={0.02}
-        shadow-camera-left={-frame.radius * 1.4}
-        shadow-camera-right={frame.radius * 1.4}
-        shadow-camera-top={frame.radius * 1.4}
-        shadow-camera-bottom={-frame.radius * 1.4}
+        shadow-camera-left={-frame.radius * 1.5}
+        shadow-camera-right={frame.radius * 1.5}
+        shadow-camera-top={frame.radius * 1.5}
+        shadow-camera-bottom={-frame.radius * 1.5}
         shadow-camera-near={0.5}
-        shadow-camera-far={frame.radius * 6}
+        shadow-camera-far={frame.radius * 8}
       />
 
       <mesh rotation-x={-Math.PI / 2} position={[frame.center.x, -0.01, frame.center.z]} receiveShadow>
@@ -115,27 +108,53 @@ function SceneContents({ plan, initialTarget }: { plan: Plan; initialTarget: THR
         <meshStandardMaterial color="#d5dbe2" roughness={1} />
       </mesh>
 
-      {rooms.map((r) => (
-        <Floor key={r.id} room={r} selected={selection?.kind === 'room' && selection.id === r.id} select={select} />
-      ))}
-
-      {Object.values(geoms).map((g) => (
-        <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} />
-      ))}
-
-      {Object.values(plan.openings).map((op) => {
-        const g = geoms[op.wallId];
-        return g ? <Opening3D key={op.id} op={op} g={g} selected={selection?.kind === 'opening' && selection.id === op.id} select={select} /> : null;
-      })}
-
-      {Object.values(plan.furniture).map((f) => (
-        <Furniture3D key={f.id} f={f} selected={selection?.kind === 'furniture' && selection.id === f.id} select={select} />
+      {visible.map((l, i) => (
+        <group key={l.id} position-y={l.elevation}>
+          <LevelContents plan={l.plan} upper={i > 0} selection={l.id === active.id ? selection : null} select={l.id === active.id ? select : noSelect} />
+        </group>
       ))}
 
       <OrbitControls makeDefault target={orbitTarget as [number, number, number]} maxPolarAngle={Math.PI / 2.05} enableDamping />
       <CameraFitter token={fitToken} frame={frame} />
     </>
   );
+}
+
+function LevelContents({ plan, upper, selection, select }: { plan: Plan; upper: boolean; selection: Selection; select: Select }) {
+  const geoms = useMemo(() => computeWallGeometry(plan), [plan]);
+  const rooms = useMemo(() => detectRooms(plan), [plan]);
+  const openingsByWall = useMemo(() => {
+    const m: Record<string, Opening[]> = {};
+    for (const op of Object.values(plan.openings)) (m[op.wallId] ??= []).push(op);
+    return m;
+  }, [plan.openings]);
+  return (
+    <>
+      {upper && rooms.map((r) => <Slab key={`slab-${r.id}`} polygon={r.polygon} />)}
+      {rooms.map((r) => (
+        <Floor key={r.id} room={r} selected={selection?.kind === 'room' && selection.id === r.id} select={select} />
+      ))}
+      {Object.values(geoms).map((g) => (
+        <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} />
+      ))}
+      {Object.values(plan.openings).map((op) => {
+        const g = geoms[op.wallId];
+        return g ? <Opening3D key={op.id} op={op} g={g} selected={selection?.kind === 'opening' && selection.id === op.id} select={select} /> : null;
+      })}
+      {Object.values(plan.furniture).map((f) => (
+        <Furniture3D key={f.id} f={f} selected={selection?.kind === 'furniture' && selection.id === f.id} select={select} />
+      ))}
+    </>
+  );
+}
+
+const slabMaterial = new THREE.MeshStandardMaterial({ color: '#cfcac2', roughness: 0.9 });
+
+/** Laje de piso dos pavimentos superiores (espessura de referência no 3D de arquitetura). */
+function Slab({ polygon }: { polygon: Vec2[] }) {
+  const geo = useMemo(() => prismGeometry(polygon, -SLAB_T, -0.001), [polygon]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  return <mesh geometry={geo} material={slabMaterial} castShadow receiveShadow />;
 }
 
 function CameraFitter({ token, frame }: { token: number; frame: ReturnType<typeof computeFrame> }) {

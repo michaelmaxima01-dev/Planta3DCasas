@@ -5,7 +5,7 @@
 import { jsPDF } from 'jspdf';
 import type { Vec2 } from '../geometry/vec';
 import { DEFAULT_META } from '../model/finishes';
-import type { Plan, ProjectMeta } from '../model/types';
+import type { Level, Plan, ProjectMeta } from '../model/types';
 import { type Drawing, type Prim, arcPoints, boundsOf, buildDrawing, fmtDim, transformInsert } from './drawing';
 import { type FurnitureRow, type ProjectSchedule, buildSchedule, furnitureName } from './schedule';
 
@@ -40,6 +40,28 @@ interface Box {
   h: number;
 }
 
+/** A fonte padrão do PDF (WinAnsi) não tem letras gregas nem setas: troca por equivalentes legíveis. */
+const PDF_SUBST: [RegExp, string][] = [
+  [/→/g, '>'],
+  [/≤/g, '<='],
+  [/≥/g, '>='],
+  [/γf/g, 'coef. ações'],
+  [/γc/g, 'coef. concreto'],
+  [/γs/g, 'coef. aço'],
+  [/γn/g, 'gn'],
+  [/σadm/g, 'tensão adm.'],
+  [/σ/g, 's'],
+  [/α/g, 'alfa'],
+  [/λ/g, 'esbeltez'],
+  [/γ/g, 'g'],
+  [/•/g, '-'],
+];
+export function pdfSafe(s: string): string {
+  let out = s;
+  for (const [re, to] of PDF_SUBST) out = out.replace(re, to);
+  return out;
+}
+
 const ptFromMm = (mm: number) => mm / 0.3528 / 0.72; // altura de maiúscula em mm → tamanho de fonte em pt
 const fmt1 = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 const deg = (rad: number) => (rad * 180) / Math.PI;
@@ -56,7 +78,7 @@ export function pickScale(widthM: number, heightM: number, box: { w: number; h: 
   return SCALES[SCALES.length - 1];
 }
 
-class Doc {
+export class Doc {
   pdf: jsPDF;
   W: number;
   H: number;
@@ -94,7 +116,8 @@ class Doc {
     this.sheets[this.sheets.length - 1].scale = scale;
   }
 
-  text(s: string, x: number, y: number, size: number, o: { bold?: boolean; color?: string; align?: 'left' | 'center' | 'right'; angle?: number; maxWidth?: number } = {}) {
+  text(raw: string, x: number, y: number, size: number, o: { bold?: boolean; color?: string; align?: 'left' | 'center' | 'right'; angle?: number; maxWidth?: number } = {}) {
+    const s = pdfSafe(raw);
     const p = this.pdf;
     p.setFont('helvetica', o.bold ? 'bold' : 'normal');
     p.setFontSize(ptFromMm(size));
@@ -277,14 +300,26 @@ class Doc {
   }
 }
 
-export function buildPdf(plan: Plan, o: PdfOptions, images: PdfImages = {}): jsPDF {
-  const sch = buildSchedule(plan);
+export function buildPdf(levels: Level[], o: PdfOptions, images: PdfImages = {}): jsPDF {
+  // numeração contínua das esquadrias entre pavimentos
+  const counters = { door: 0, window: 0 };
+  const perLevel = levels.map((level) => ({ level, sch: buildSchedule(level.plan, counters) }));
+  const multi = levels.length > 1;
+  const pre = (lv: Level, name: string) => (multi ? `${lv.name} - ${name}` : name);
+  const merged: ProjectSchedule = {
+    geoms: {},
+    rooms: perLevel.flatMap(({ level, sch }) => sch.rooms.map((r) => ({ ...r, room: { ...r.room, name: pre(level, r.room.name) } }))),
+    openings: perLevel.flatMap(({ sch }) => sch.openings),
+    furniture: perLevel.flatMap(({ level, sch }) => sch.furniture.map((f) => ({ ...f, roomName: pre(level, f.roomName) }))),
+    totalArea: perLevel.reduce((s, x) => s + x.sch.totalArea, 0),
+    builtArea: perLevel.reduce((s, x) => s + x.sch.builtArea, 0),
+  };
   const doc = new Doc(o.paper, o.meta);
-  coverSheet(doc, sch, o, images);
-  planSheet(doc, plan, sch, o);
-  tablesSheet(doc, sch);
-  if (o.roomPages) for (const r of sch.rooms) roomSheet(doc, plan, sch, r.room.id);
-  if (o.furnitureList && sch.furniture.length) furnitureSheet(doc, sch);
+  coverSheet(doc, merged, o, images);
+  for (const { level, sch } of perLevel) planSheet(doc, level.plan, sch, o, multi ? `Planta baixa - ${level.name}` : 'Planta baixa');
+  tablesSheet(doc, merged);
+  if (o.roomPages) for (const { level, sch } of perLevel) for (const r of sch.rooms) roomSheet(doc, level.plan, sch, r.room.id, multi ? level.name : '');
+  if (o.furnitureList && merged.furniture.length) furnitureSheet(doc, merged);
   if (o.views3d && images.views?.length) viewsSheet(doc, images.views);
   doc.finish();
   return doc.pdf;
@@ -330,8 +365,8 @@ function coverSheet(doc: Doc, sch: ProjectSchedule, o: PdfOptions, images: PdfIm
   if (images.cover) doc.image(images.cover, { x: a.x + left, y: a.y, w: a.w - left, h: a.h }, 1.6);
 }
 
-function planSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, o: PdfOptions) {
-  doc.newSheet('Planta baixa');
+function planSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, o: PdfOptions, title: string) {
+  doc.newSheet(title);
   const a = doc.area;
   const box = { x: a.x, y: a.y + 8, w: a.w, h: a.h - 8 };
   // a margem das cotas tem tamanho fixo no papel (24 mm de cada lado)
@@ -340,7 +375,7 @@ function planSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, o: PdfOptions) {
   const scale = o.scale || pickScale(c.maxX - c.minX, c.maxY - c.minY, { w: box.w - 48, h: box.h - 48 });
   const d = buildDrawing(plan, sch, { scale, roomFills: true });
   doc.setSheetScale(`1:${scale}`);
-  doc.text(`PLANTA BAIXA  -  ESC. 1:${scale}`, a.x, a.y + 2, 3, { bold: true });
+  doc.text(`${title.toUpperCase()}  -  ESC. 1:${scale}`, a.x, a.y + 2, 3, { bold: true });
   doc.text('Cotas e áreas em metros. P = porta, J = janela (ver quadro de esquadrias).', a.x + a.w, a.y + 2, 2, { color: MUTED, align: 'right' });
   doc.drawDrawing(d, box, scale, d.bounds);
 }
@@ -388,10 +423,10 @@ function tablesSheet(doc: Doc, sch: ProjectSchedule) {
   void y2;
 }
 
-function roomSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, roomId: string) {
+function roomSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, roomId: string, levelName: string) {
   const info = sch.rooms.find((r) => r.room.id === roomId)!;
   const room = info.room;
-  doc.newSheet(`Cômodo: ${room.name}`);
+  doc.newSheet(`Cômodo: ${room.name}${levelName ? ` (${levelName})` : ''}`);
   const a = doc.area;
   const drawW = a.w * 0.58;
   const box = { x: a.x, y: a.y + 8, w: drawW - 6, h: a.h - 8 };

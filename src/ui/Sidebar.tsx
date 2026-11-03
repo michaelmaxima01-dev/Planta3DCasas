@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { CATALOG, CATEGORIES } from '../catalog/catalog';
 import { type Tool, useUI } from '../store/uiStore';
 import { NumberField } from './Fields';
+import { LevelBar } from './LevelBar';
 import { fmtNumber } from './format';
 
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
@@ -26,6 +27,7 @@ export function Sidebar() {
 
   return (
     <aside className="sidebar">
+      <LevelBar />
       <section>
         <h3>Ferramentas</h3>
         <div className="tools">

@@ -21,6 +21,8 @@ import {
   wallMaterial,
 } from './materials';
 
+const slabMaterial = new THREE.MeshStandardMaterial({ color: '#cfcac2', roughness: 0.9 });
+
 export function prismGeometry(poly: Vec2[], bottom: number, top: number): THREE.BufferGeometry {
   const shape = new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.y)));
   const g = new THREE.ExtrudeGeometry(shape, { depth: top - bottom, bevelEnabled: false });
@@ -63,7 +65,7 @@ function openingGroup(op: Opening, g: WallGeom): THREE.Group {
   return grp;
 }
 
-export function buildHouseGroup(plan: Plan, opts: { lights?: boolean } = {}): THREE.Group {
+export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boolean } = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = 'Casa';
   const geoms = computeWallGeometry(plan);
@@ -93,6 +95,12 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean } = {}): TH
     m.receiveShadow = true;
     m.name = r.name;
     floors.add(m);
+    if (opts.slab) {
+      const s = new THREE.Mesh(prismGeometry(r.polygon, -0.12, -0.001), slabMaterial);
+      s.castShadow = true;
+      s.receiveShadow = true;
+      floors.add(s);
+    }
   }
   root.add(floors);
 

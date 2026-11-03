@@ -481,3 +481,180 @@ kbd {
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- pavimentos ---------- */
+.levels {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 8px;
+}
+.levels button {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  text-align: left;
+}
+.levels small {
+  color: var(--muted);
+  font-size: 11px;
+}
+.level-edit {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.add-level {
+  display: grid;
+  gap: 4px;
+}
+.add-level .hint {
+  margin: 0 0 2px;
+}
+
+/* ---------- estrutura ---------- */
+.topbar .tabs button {
+  min-width: 96px;
+}
+.topbar .tabs button.active {
+  background: #f1c40f;
+  border-color: #f1c40f;
+  color: #1d2733;
+  font-weight: 600;
+}
+.primary-soft {
+  background: #e6efff !important;
+  border-color: #9cc0ff !important;
+  color: #134ea8;
+  font-weight: 600;
+}
+.select-field {
+  display: grid;
+  gap: 3px;
+  margin-bottom: 6px;
+}
+.select-field span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.select-field select {
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font: inherit;
+  background: #fff;
+}
+.params .field {
+  margin-bottom: 4px;
+}
+.check-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.legend {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  font-size: 11px;
+  color: var(--muted);
+}
+.legend i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  margin-right: 4px;
+  vertical-align: -1px;
+}
+.badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 10px;
+  border: 1px solid;
+  margin-left: 6px;
+  text-transform: none;
+  letter-spacing: 0;
+  vertical-align: 1px;
+}
+table.calc {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+table.calc td {
+  padding: 3px 2px;
+  border-bottom: 1px dashed #edf0f4;
+}
+table.calc td:last-child {
+  text-align: right;
+  white-space: nowrap;
+}
+table.calc tr.total td {
+  font-weight: 700;
+  border-top: 1px solid var(--border);
+  border-bottom: none;
+}
+.notes {
+  margin: 6px 0;
+  padding-left: 18px;
+  font-size: 12px;
+  color: #8a5a00;
+  line-height: 1.45;
+}
+.status-row {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+}
+.issues {
+  display: grid;
+  gap: 3px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+.issue {
+  display: flex;
+  gap: 6px;
+  text-align: left;
+  font-size: 12px;
+  line-height: 1.35;
+  background: #fafbfc;
+  padding: 6px;
+}
+.issue i {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  margin-top: 4px;
+}
+.issue:disabled {
+  opacity: 1;
+  cursor: default;
+}
+.primary-btn {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  padding: 8px;
+  margin-top: 6px;
+}
+.primary-btn:hover:not(:disabled) {
+  background: #1f6be0;
+}
+.hint.small {
+  font-size: 11px;
+}
+.properties .meta-field input {
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  font: inherit;
+}

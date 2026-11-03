@@ -71,6 +71,12 @@ export interface ProjectMeta {
   author: string;
   registry: string;
   notes: string;
+  /** Responsável técnico pela estrutura (engenheiro civil). */
+  engineer?: string;
+  /** Registro CREA do engenheiro. */
+  engineerRegistry?: string;
+  /** Número da ART. */
+  art?: string;
 }
 
 export interface Plan {
@@ -83,5 +89,24 @@ export interface Plan {
   rooms: Record<string, RoomLabel>;
 }
 
-export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room';
+/** Pavimento: cada um tem sua própria planta. */
+export interface Level {
+  id: string;
+  name: string;
+  /** Cota do piso acabado (m). */
+  elevation: number;
+  /** Altura piso a piso (m): pé-direito + espessura da laje. */
+  height: number;
+  plan: Plan;
+}
+
+/** Documento completo: pavimentos + estrutura. */
+export interface Building {
+  version: 2;
+  meta?: ProjectMeta;
+  levels: Level[];
+  structure: import('../structure/types').StructureModel;
+}
+
+export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room' | 'pillar' | 'beam' | 'slab' | 'footing';
 export type Selection = { kind: SelectionKind; id: string } | null;
