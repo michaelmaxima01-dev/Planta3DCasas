@@ -658,3 +658,10 @@ table.calc tr.total td {
   border-radius: 5px;
   font: inherit;
 }
+.opts-extra {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 13px;
+  margin-bottom: 8px;
+}

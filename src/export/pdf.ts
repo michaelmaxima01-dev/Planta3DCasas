@@ -19,6 +19,8 @@ export interface PdfOptions {
   furnitureList: boolean;
   views3d: boolean;
   meta: ProjectMeta;
+  /** Acrescenta folhas extras no fim (ex.: estrutura), antes dos carimbos. */
+  extraSheets?: (doc: Doc) => void;
 }
 
 export interface PdfImages {
@@ -84,7 +86,9 @@ export class Doc {
   H: number;
   margin = 10;
   titleH: number;
-  sheets: { title: string; scale?: string }[] = [];
+  sheets: { title: string; scale?: string; meta?: ProjectMeta }[] = [];
+  /** Carimbo usado nas próximas folhas (ex.: engenheiro nas folhas da estrutura). */
+  activeMeta?: ProjectMeta;
 
   private meta: ProjectMeta;
 
@@ -105,7 +109,7 @@ export class Doc {
 
   newSheet(title: string, scale?: string) {
     if (this.sheets.length > 0) this.pdf.addPage();
-    this.sheets.push({ title, scale });
+    this.sheets.push({ title, scale, meta: this.activeMeta });
     const p = this.pdf;
     p.setDrawColor(INK);
     p.setLineWidth(0.5);
@@ -128,9 +132,9 @@ export class Doc {
   /** Desenha todos os carimbos (no fim, quando já se sabe o total de folhas). */
   finish() {
     const total = this.sheets.length;
-    const m = this.meta;
     const date = new Date().toLocaleDateString('pt-BR');
     this.sheets.forEach((sheet, i) => {
+      const m = sheet.meta ?? this.meta;
       this.pdf.setPage(i + 1);
       const p = this.pdf;
       const x0 = this.margin;
@@ -321,6 +325,7 @@ export function buildPdf(levels: Level[], o: PdfOptions, images: PdfImages = {})
   if (o.roomPages) for (const { level, sch } of perLevel) for (const r of sch.rooms) roomSheet(doc, level.plan, sch, r.room.id, multi ? level.name : '');
   if (o.furnitureList && merged.furniture.length) furnitureSheet(doc, merged);
   if (o.views3d && images.views?.length) viewsSheet(doc, images.views);
+  o.extraSheets?.(doc);
   doc.finish();
   return doc.pdf;
 }

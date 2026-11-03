@@ -8,7 +8,7 @@ import { computeWallGeometry } from '../geometry/walls';
 import { boundsOf } from '../export/drawing';
 import { Doc, type Paper, pickScale } from '../export/pdf';
 import { DEFAULT_META } from '../model/finishes';
-import type { Building } from '../model/types';
+import type { Building, ProjectMeta } from '../model/types';
 import type { Status, StructureResult } from './analyze';
 import { BALDRAME, ROOFS, SOILS } from './types';
 
@@ -18,13 +18,29 @@ const f0 = (v: number) => Math.round(v).toLocaleString('pt-BR');
 const ST: Record<Status, string> = { ok: 'Atende', warn: 'Atenção', fail: 'Não atende' };
 const ST_COLOR: Record<Status, string> = { ok: '#2f9e44', warn: '#c27c0e', fail: '#c92a2a' };
 
-export function buildStructuralReport(b: Building, r: StructureResult, paper: Paper = 'A3'): jsPDF {
+/** Carimbo das folhas da estrutura: o responsável é o engenheiro (CREA e ART). */
+export function engineerMeta(b: Building): ProjectMeta {
   const meta = { ...DEFAULT_META, ...b.meta };
-  const doc = new Doc(paper, {
+  return {
     ...meta,
     author: meta.engineer || meta.author,
     registry: [meta.engineerRegistry ? `CREA ${meta.engineerRegistry}` : '', meta.art ? `ART ${meta.art}` : ''].filter(Boolean).join(' - ') || meta.registry,
-  });
+  };
+}
+
+/** Relatório estrutural avulso. */
+export function buildStructuralReport(b: Building, r: StructureResult, paper: Paper = 'A3'): jsPDF {
+  const doc = new Doc(paper, engineerMeta(b));
+  appendStructuralSheets(doc, b, r);
+  doc.finish();
+  return doc.pdf;
+}
+
+/** Folhas da estrutura, usadas no relatório avulso e no fim do caderno do projeto. */
+export function appendStructuralSheets(doc: Doc, b: Building, r: StructureResult) {
+  const previous = doc.activeMeta;
+  doc.activeMeta = engineerMeta(b);
+  const meta = { ...DEFAULT_META, ...b.meta };
   const s = b.structure.settings;
   const levelName = (id: string) => (id === BALDRAME ? 'Fundação' : b.levels.find((l) => l.id === id)?.name ?? '');
   const more = (title: string) => () => {
@@ -200,8 +216,7 @@ export function buildStructuralReport(b: Building, r: StructureResult, paper: Pa
   doc.text(meta.engineerRegistry ? `CREA ${meta.engineerRegistry}` : 'CREA', sx + sw / 2, sy + 66, 2.2, { align: 'center', color: '#495057' });
   doc.text('Assinatura do responsável técnico', sx + sw / 2, sy + 72, 1.9, { align: 'center', color: '#6b7480' });
 
-  doc.finish();
-  return doc.pdf;
+  doc.activeMeta = previous;
 }
 
 /** Planta de fôrmas: paredes como referência, lajes, vigas (tracejadas) e pilares; ou locação das sapatas. */

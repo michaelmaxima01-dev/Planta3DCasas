@@ -45,6 +45,7 @@ O projeto é salvo sozinho no navegador; **Exemplo** recarrega a casa e **Novo**
 |---|---|---|
 | **PDF** | Cliente e obra | Capa com 3D, planta baixa em escala (automática ou 1:25 a 1:125) com cotas, quadro de áreas, quadro de esquadrias (P1, J1…), uma folha por cômodo (desenho recortado com medidas internas, área, perímetro, pé-direito, volume, piso, área de paredes, rodapé, portas, janelas e móveis), lista de mobiliário e vistas 3D. Carimbo em todas as folhas, A3 ou A4 |
 | **DXF** | AutoCAD, BricsCAD, DraftSight, LibreCAD | Planta 2D em escala real (m, cm ou mm) com camadas PAREDES, PORTAS, JANELAS, MOVEIS, COTAS, TEXTOS, COMODOS e PAREDES-HACHURA; móveis como blocos; contorno dos cômodos medível com ÁREA. Para DWG: abrir no AutoCAD e usar *Salvar como* |
+| **Estrutura** | Engenheiro | Relatório estrutural avulso (fôrmas, fundação, tabelas, caminho das cargas e termo de responsabilidade com assinatura). No PDF do projeto, a opção *Estrutura* acrescenta essas folhas no fim do caderno, com o carimbo do engenheiro. No DXF, a opção *Estrutura* acrescenta as camadas PILARES, VIGAS e LAJES, e o desenho *Locação da fundação* gera sapatas/blocos (camada FUNDACAO), baldrames e pilares |
 | **JSON** (botão Salvar) | Arquivo-mestre | Tudo, inclusive o comportamento paramétrico. É o único que abre de volta aqui |
 
 Os dados do carimbo (projeto, cliente, endereço, responsável, CAU/CREA) são preenchidos na janela de exportação e ficam salvos no projeto.
@@ -86,7 +87,7 @@ Pré-dimensionamento de concreto armado com alvenaria de vedação, da fundaçã
 Critérios simplificados das NBR 6118, 6120, 6122 e 8681; a validação final e a assinatura são do
 engenheiro responsável, e a tensão admissível do solo deve vir de sondagem SPT.
 
-Exemplos prontos em `exemplos/`: caderno do projeto, DXF do térreo e relatório estrutural do sobrado.
+Exemplos prontos em `exemplos/`: caderno completo do sobrado (arquitetura + estrutura), relatório estrutural, DXF do térreo com a estrutura e DXF da locação da fundação.
 
 ## Organização do código
 

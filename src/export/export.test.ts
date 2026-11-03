@@ -69,3 +69,46 @@ describe('PDF', () => {
     expect(pickScale(12, 10, { w: 200, h: 150 })).toBe(75);
   });
 });
+
+describe('estrutura nas exportações', () => {
+  it('DXF ganha camadas da estrutura e a locação da fundação', async () => {
+    const { buildExampleBuilding } = await import('../model/building');
+    const { generateStructure } = await import('../structure/generate');
+    const { analyzeStructure } = await import('../structure/analyze');
+    const { addStructureToDrawing } = await import('../structure/drawingLayers');
+    const { BALDRAME } = await import('../structure/types');
+    const b = buildExampleBuilding();
+    b.structure = generateStructure(b);
+    const r = analyzeStructure(b);
+    const ground = b.levels[0];
+    const d = buildDrawing(ground.plan, buildSchedule(ground.plan), { scale: 50 });
+    addStructureToDrawing(d, b, r, ground.id, 50);
+    const dxf = buildDxf(d, { unit: 'm', scale: 50, wallFill: true });
+    for (const layer of ['PILARES', 'VIGAS', 'LAJES']) expect(dxf).toContain(`8\r\n${layer}\r\n`);
+    const f = buildDrawing(ground.plan, buildSchedule(ground.plan), { scale: 50, furniture: false, texts: false });
+    addStructureToDrawing(f, b, r, BALDRAME, 50);
+    const fdxf = buildDxf(f, { unit: 'm', scale: 50, wallFill: true });
+    expect(fdxf).toContain('8\r\nFUNDACAO\r\n');
+    expect(fdxf).toContain('VB1');
+    if (process.env.DUMP_DIR) {
+      writeFileSync(`${process.env.DUMP_DIR}/estrutura-terreo.dxf`, dxfToBytes(dxf));
+      writeFileSync(`${process.env.DUMP_DIR}/fundacao.dxf`, dxfToBytes(fdxf));
+    }
+  });
+
+  it('PDF do projeto termina com as folhas da estrutura e o termo do engenheiro', async () => {
+    const { buildExampleBuilding } = await import('../model/building');
+    const { generateStructure } = await import('../structure/generate');
+    const { analyzeStructure } = await import('../structure/analyze');
+    const { appendStructuralSheets } = await import('../structure/report');
+    const { buildPdf } = await import('./pdf');
+    const b = buildExampleBuilding();
+    b.structure = generateStructure(b);
+    b.meta = { ...b.meta!, engineer: 'Eng. Teste', engineerRegistry: 'SP-1', art: '123' };
+    const meta = { title: 'Sobrado', client: '', address: '', author: 'Arq. A', registry: 'CAU 1', notes: '' };
+    const opts = { paper: 'A3' as const, scale: 0, roomPages: false, furnitureList: false, views3d: false, meta };
+    const sem = buildPdf(b.levels, opts);
+    const com = buildPdf(b.levels, { ...opts, extraSheets: (doc) => appendStructuralSheets(doc, b, analyzeStructure(b)) });
+    expect(com.getNumberOfPages()).toBeGreaterThan(sem.getNumberOfPages() + 8);
+  });
+});

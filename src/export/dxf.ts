@@ -194,7 +194,7 @@ function entity(
   switch (prim.t) {
     case 'poly': {
       if (prim.pts.length < 2) return;
-      if (wallFill && prim.layer === 'PAREDES' && prim.closed) solidFill(w, prim.pts.map(P));
+      if (wallFill && (prim.layer === 'PAREDES' || prim.layer === 'PILARES') && prim.closed) solidFill(w, prim.pts.map(P), prim.layer === 'PAREDES' ? 'PAREDES-HACHURA' : 'PILARES');
       if (prim.pts.length === 2 && !prim.closed) {
         const [a, c] = prim.pts.map(P);
         w.pair(0, 'LINE');
@@ -269,13 +269,13 @@ function entity(
 }
 
 /** Preenchimento sólido (triângulos SOLID) — o "poché" escuro das paredes cortadas. */
-function solidFill(w: Writer, pts: Vec2[]) {
+function solidFill(w: Writer, pts: Vec2[], layer: string) {
   const flat = pts.flatMap((p) => [p.x, p.y]);
   const tri = earcut(flat);
   for (let i = 0; i < tri.length; i += 3) {
     const [a, b, c] = [pts[tri[i]], pts[tri[i + 1]], pts[tri[i + 2]]];
     w.pair(0, 'SOLID');
-    w.pair(8, 'PAREDES-HACHURA');
+    w.pair(8, layer);
     pt(w, 10, a);
     pt(w, 11, b);
     pt(w, 12, c);

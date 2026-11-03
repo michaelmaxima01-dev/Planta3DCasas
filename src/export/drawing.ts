@@ -9,7 +9,7 @@ import { wallPlanPieces } from '../geometry/walls';
 import type { Opening, Plan } from '../model/types';
 import type { ProjectSchedule } from './schedule';
 
-export type Layer = 'PAREDES' | 'PORTAS' | 'JANELAS' | 'MOVEIS' | 'COTAS' | 'TEXTOS' | 'COMODOS';
+export type Layer = 'PAREDES' | 'PORTAS' | 'JANELAS' | 'MOVEIS' | 'COTAS' | 'TEXTOS' | 'COMODOS' | 'PILARES' | 'VIGAS' | 'LAJES' | 'FUNDACAO';
 
 export const LAYERS: { name: Layer; color: number; label: string }[] = [
   // color = índice de cor do AutoCAD (ACI)
@@ -20,6 +20,10 @@ export const LAYERS: { name: Layer; color: number; label: string }[] = [
   { name: 'COTAS', color: 1, label: 'Cotas' },
   { name: 'TEXTOS', color: 3, label: 'Textos' },
   { name: 'COMODOS', color: 9, label: 'Contorno dos cômodos' },
+  { name: 'PILARES', color: 30, label: 'Pilares' },
+  { name: 'VIGAS', color: 6, label: 'Vigas' },
+  { name: 'LAJES', color: 2, label: 'Lajes' },
+  { name: 'FUNDACAO', color: 40, label: 'Fundação' },
 ];
 
 interface Style {

@@ -7,6 +7,10 @@ import { renderViews } from '../export/snapshots';
 import { DEFAULT_META } from '../model/finishes';
 import type { ProjectMeta } from '../model/types';
 import { selectLevel, usePlan } from '../store/planStore';
+import { addStructureToDrawing } from '../structure/drawingLayers';
+import { cachedAnalysis } from '../structure/ops';
+import { appendStructuralSheets, buildStructuralReport } from '../structure/report';
+import { BALDRAME } from '../structure/types';
 
 const META_FIELDS: { key: keyof ProjectMeta; label: string; placeholder: string }[] = [
   { key: 'title', label: 'Nome do projeto', placeholder: 'Residência Silva' },
@@ -61,6 +65,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [roomPages, setRoomPages] = useState(true);
   const [furnitureList, setFurnitureList] = useState(true);
   const [views3d, setViews3d] = useState(true);
+  const hasStructure = Object.keys(building.structure.pillars).length > 0;
+  const [pdfStructure, setPdfStructure] = useState(hasStructure);
+  const [dxfStructure, setDxfStructure] = useState(hasStructure);
 
   const [unit, setUnit] = useState<DxfUnit>('m');
   const [dxfLevel, setDxfLevel] = useState(level.id);
@@ -96,7 +103,15 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
       const titles = ['Perspectiva frontal', 'Perspectiva posterior', 'Vista superior'];
       const pdf = buildPdf(
         building.levels,
-        { paper, scale, roomPages, furnitureList, views3d, meta },
+        {
+          paper,
+          scale,
+          roomPages,
+          furnitureList,
+          views3d,
+          meta,
+          extraSheets: pdfStructure && hasStructure ? (doc) => appendStructuralSheets(doc, building, cachedAnalysis(building)) : undefined,
+        },
         { cover: shots[0], views: views3d ? shots.map((src, i) => ({ title: titles[i], src })) : [] },
       );
       pdf.save(`${fileBase}.pdf`);
@@ -110,11 +125,18 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   };
 
   const exportDxf = () => {
-    const dl = building.levels.find((l) => l.id === dxfLevel) ?? level;
+    const foundation = dxfLevel === BALDRAME;
+    const dl = foundation ? building.levels[0] : building.levels.find((l) => l.id === dxfLevel) ?? level;
     const sch = buildSchedule(dl.plan);
-    const drawing = buildDrawing(dl.plan, sch, { scale: dxfScale, furniture: dxfFurniture, dimensions: dxfDims, texts: dxfTexts });
+    const drawing = buildDrawing(dl.plan, sch, {
+      scale: dxfScale,
+      furniture: dxfFurniture && !foundation,
+      dimensions: dxfDims,
+      texts: dxfTexts && !foundation,
+    });
+    if ((dxfStructure || foundation) && hasStructure) addStructureToDrawing(drawing, building, cachedAnalysis(building), foundation ? BALDRAME : dl.id, dxfScale);
     const dxf = buildDxf(drawing, { unit, scale: dxfScale, wallFill });
-    const dxfName = building.levels.length > 1 ? `${fileBase}-${slugify(dl.name)}` : fileBase;
+    const dxfName = foundation ? `${fileBase}-fundacao` : building.levels.length > 1 ? `${fileBase}-${slugify(dl.name)}` : fileBase;
     download(dxfToBytes(dxf), 'application/dxf', `${dxfName}.dxf`);
     setDone(`DXF gerado em ${unit === 'm' ? 'metros' : unit === 'cm' ? 'centímetros' : 'milímetros'} (${dxfName}.dxf)`);
   };
@@ -177,6 +199,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 <label className="check">
                   <input type="checkbox" checked={views3d} onChange={(e) => setViews3d(e.target.checked)} /> Vistas 3D
                 </label>
+                <label className="check" title={hasStructure ? '' : 'Gere a estrutura na aba Estrutura'}>
+                  <input type="checkbox" disabled={!hasStructure} checked={pdfStructure && hasStructure} onChange={(e) => setPdfStructure(e.target.checked)} /> Estrutura (fôrmas,
+                  fundação, verificação e termo do engenheiro)
+                </label>
               </div>
               <button className="primary" disabled={!!busy || empty} onClick={exportPdf}>
                 {busy === 'pdf' ? 'Gerando…' : 'Baixar PDF'}
@@ -194,15 +220,16 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 Salvar como.
               </p>
               <div className="opts">
-                {building.levels.length > 1 && (
+                {(building.levels.length > 1 || hasStructure) && (
                   <label>
-                    Pavimento
+                    Desenho
                     <select value={dxfLevel} onChange={(e) => setDxfLevel(e.target.value)}>
                       {building.levels.map((l) => (
                         <option key={l.id} value={l.id}>
-                          {l.name}
+                          Planta - {l.name}
                         </option>
                       ))}
+                      {hasStructure && <option value={BALDRAME}>Locação da fundação</option>}
                     </select>
                   </label>
                 )}
@@ -235,32 +262,46 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                   <input type="checkbox" checked={dxfTexts} onChange={(e) => setDxfTexts(e.target.checked)} /> Nomes, áreas e códigos
                 </label>
               </div>
+              <label className="check opts-extra" title={hasStructure ? '' : 'Gere a estrutura na aba Estrutura'}>
+                <input type="checkbox" disabled={!hasStructure || dxfLevel === BALDRAME} checked={(dxfStructure || dxfLevel === BALDRAME) && hasStructure} onChange={(e) => setDxfStructure(e.target.checked)} /> Estrutura
+                (camadas PILARES, VIGAS, LAJES)
+              </label>
               <button className="primary" disabled={!!busy || empty} onClick={exportDxf}>
                 Baixar DXF
               </button>
             </article>
 
-            <article className="format soon">
+            <article className="format">
               <div className="format-head">
-                <b>Próximos formatos</b>
-                <span>em desenvolvimento</span>
+                <b>Estrutura</b>
+                <span>Relatório estrutural para o engenheiro</span>
               </div>
-              <ul>
-                <li>
-                  <b>IFC</b> - Revit, Archicad, SketchUp Pro (BIM)
-                </li>
-                <li>
-                  <b>glTF / OBJ</b> - Blender, SketchUp, Unreal, Unity
-                </li>
-                <li>
-                  <b>USDZ</b> - realidade aumentada no iPhone/iPad
-                </li>
-                <li>
-                  <b>PNG / SVG</b> - imagens da planta e do 3D
-                </li>
-              </ul>
+              <p className="hint">
+                Premissas, pendências, plantas de fôrmas de cada pavimento, locação da fundação, tabelas de lajes, vigas,
+                pilares e fundações, caminho das cargas e termo de responsabilidade técnica com campo de assinatura.
+              </p>
+              <p className="hint">
+                Engenheiro: <b>{meta.engineer || 'não informado'}</b>
+                {meta.engineerRegistry ? ` • CREA ${meta.engineerRegistry}` : ''}
+                {meta.art ? ` • ART ${meta.art}` : ''}
+                <br />
+                Preencha esses dados no painel da aba Estrutura.
+              </p>
+              {!hasStructure && <p className="hint">Gere a estrutura na aba Estrutura para habilitar.</p>}
+              <button
+                className="primary"
+                disabled={!hasStructure || !!busy}
+                onClick={() => {
+                  const pdf = buildStructuralReport(building, cachedAnalysis(building), paper);
+                  pdf.save(`${fileBase}-estrutural.pdf`);
+                  setDone(`Relatório estrutural gerado: ${pdf.getNumberOfPages()} folhas (${fileBase}-estrutural.pdf)`);
+                }}
+              >
+                Baixar relatório estrutural
+              </button>
             </article>
           </div>
+          <p className="hint">Em desenvolvimento: IFC (Revit, Archicad, SketchUp Pro), glTF/OBJ (Blender, SketchUp), USDZ (realidade aumentada) e PNG/SVG.</p>
           {empty && <p className="hint">Desenhe ao menos uma parede para exportar.</p>}
           {done && <p className="done">✓ {done}</p>}
         </div>
