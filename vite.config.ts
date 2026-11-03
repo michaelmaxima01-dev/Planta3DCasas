@@ -13,6 +13,8 @@ function commit() {
 
 // https://vite.dev/config/
 export default defineConfig({
+  // caminhos relativos: funciona na raiz do domínio ou em uma subpasta da Hostinger
+  base: './',
   plugins: [react()],
   define: {
     __APP_COMMIT__: JSON.stringify(commit()),

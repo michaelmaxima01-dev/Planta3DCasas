@@ -6,6 +6,7 @@ import { clearHistory, redo, undo, usePlan } from '../store/planStore';
 import { type ViewMode, useUI } from '../store/uiStore';
 import { ExportDialog } from './ExportDialog';
 import { APP_COMMIT, APP_VERSION } from '../version';
+import { logout } from './Login';
 
 export function TopBar() {
   const canUndo = useStore(usePlan.temporal, (s) => s.pastStates.length > 0);
@@ -98,6 +99,9 @@ export function TopBar() {
           Paredes baixas
         </button>
         <button onClick={requestFit} title="Enquadrar o projeto nas vistas">Enquadrar</button>
+      </div>
+      <div className="group">
+        <button onClick={() => confirm('Sair do sistema? Salve o projeto antes, se precisar.') && logout()} title="Sair do sistema">Sair</button>
       </div>
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
     </header>

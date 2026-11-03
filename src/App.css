@@ -975,3 +975,84 @@ table.calc.detail small {
   padding: 1px 6px;
   vertical-align: 2px;
 }
+
+/* ---------- Login ---------- */
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: linear-gradient(160deg, #e9f0fb 0%, var(--bg) 60%);
+}
+.login-card {
+  width: 100%;
+  max-width: 340px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 28px 24px;
+  box-shadow: 0 12px 32px rgba(31, 41, 51, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.login-brand {
+  font-size: 22px;
+  text-align: center;
+}
+.login-brand span {
+  color: var(--accent);
+}
+.login-brand small {
+  font-size: 11px;
+  color: var(--muted);
+  margin-left: 6px;
+}
+.login-sub {
+  margin: 0 0 4px;
+  text-align: center;
+  color: var(--muted);
+}
+.login-card label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.login-card label > span {
+  color: var(--muted);
+  font-size: 12px;
+}
+.login-card input:not([type='checkbox']) {
+  font: inherit;
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.login-card input:focus {
+  outline: 2px solid var(--accent-soft);
+  border-color: var(--accent);
+}
+.login-card .login-remember {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.login-error {
+  color: var(--danger);
+  background: #fdecef;
+  border-radius: 6px;
+  padding: 8px 10px;
+}
+.login-card button[type='submit'] {
+  margin-top: 4px;
+  padding: 10px;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  font-weight: 600;
+  cursor: pointer;
+}
+.login-card button[type='submit']:hover {
+  filter: brightness(1.05);
+}
