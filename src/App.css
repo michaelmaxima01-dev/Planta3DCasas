@@ -966,3 +966,12 @@ table.calc.detail small {
 .annot-text {
   cursor: move;
 }
+.topbar .version {
+  margin-left: 6px;
+  font-size: 11px;
+  color: #9fb3c8;
+  border: 1px solid #3a4859;
+  border-radius: 8px;
+  padding: 1px 6px;
+  vertical-align: 2px;
+}

@@ -5,6 +5,7 @@ import type { Building } from '../model/types';
 import { clearHistory, redo, undo, usePlan } from '../store/planStore';
 import { type ViewMode, useUI } from '../store/uiStore';
 import { ExportDialog } from './ExportDialog';
+import { APP_COMMIT, APP_VERSION } from '../version';
 
 export function TopBar() {
   const canUndo = useStore(usePlan.temporal, (s) => s.pastStates.length > 0);
@@ -56,6 +57,9 @@ export function TopBar() {
     <header className="topbar">
       <div className="brand">
         <b>Planta3D</b> <span>Casas</span>
+        <small className="version" title={`Versão ${APP_VERSION} (commit ${APP_COMMIT})`}>
+          v{APP_VERSION}
+        </small>
       </div>
       <div className="group tabs">
         <button className={mode === 'arch' ? 'active' : ''} onClick={() => { setUI({ mode: 'arch' }); useUI.getState().select(null); }}>
