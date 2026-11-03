@@ -1,1 +1,5 @@
 minimumReleaseAge: 2880
+
+# core-js (dependência do jsPDF) só tem um script de propaganda no postinstall: não precisa rodar
+allowBuilds:
+  core-js: false
