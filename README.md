@@ -178,3 +178,12 @@ src/
 ```
 
 A geometria fica isolada em `src/geometry` para poder ser trocada por um núcleo em Rust/WebAssembly no futuro sem mexer na interface.
+
+## Publicar na Hostinger
+
+1. Gere o pacote: `pnpm build` (ou use o pronto em `hostinger/planta3dcasas-hostinger.zip`).
+2. hPanel → **Arquivos → Gerenciador de arquivos** → abra `public_html` (ou uma subpasta, ex. `public_html/planta`).
+3. **Enviar** o `.zip` → clique com o botão direito → **Extrair** ali mesmo. O `index.html` deve ficar direto dentro da pasta.
+4. Acesse o domínio. Login: `admin` / `admin2410` (definido em `src/ui/Login.tsx`).
+
+O `.htaccess` incluso ativa compressão e cache. Para forçar HTTPS, descomente as 2 linhas indicadas nele.
