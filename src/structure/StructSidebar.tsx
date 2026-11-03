@@ -1,10 +1,11 @@
 import { NumberField } from '../ui/Fields';
 import { LevelBar } from '../ui/LevelBar';
+import { RoofPanel } from '../ui/RoofPanel';
 import { usePlan } from '../store/planStore';
 import { type StructTool, useUI } from '../store/uiStore';
 import { autoSize } from './analyze';
 import { generateStructure } from './generate';
-import { type FoundationKind, ROOFS, type RoofKind, SOILS, type SlabKind, type SoilKey, type StructureSettings } from './types';
+import { type FoundationKind, SOILS, type SlabKind, type SoilKey, type StructureSettings } from './types';
 
 const TOOLS: { id: StructTool; label: string; key: string; icon: string }[] = [
   { id: 'select', label: 'Selecionar', key: 'V', icon: '➤' },
@@ -114,21 +115,13 @@ export function StructSidebar() {
             <option value="macica">Maciça</option>
           </select>
         </label>
-        <label className="select-field">
-          <span>Cobertura</span>
-          <select value={st.roof} onChange={(e) => set({ roof: e.target.value as RoofKind })}>
-            {ROOFS.map((x) => (
-              <option key={x.key} value={x.key}>
-                {x.name}
-              </option>
-            ))}
-          </select>
-        </label>
         <NumberField label="Sobrecarga uso" value={st.liveLoad} suffix="kN/m²" min={0.5} max={10} onCommit={(v) => set({ liveLoad: v })} />
         <NumberField label="Revestimento piso" value={st.finishLoad} suffix="kN/m²" min={0} max={5} onCommit={(v) => set({ finishLoad: v })} />
         <NumberField label="Peso alvenaria" value={st.wallUnitWeight} suffix="kN/m³" min={5} max={25} onCommit={(v) => set({ wallUnitWeight: v })} />
         <NumberField label="Vão máx. pilares" value={st.maxSpan} min={2} max={8} onCommit={(v) => set({ maxSpan: v })} />
       </section>
+
+      <RoofPanel />
 
       <section>
         <h3>Visualização</h3>

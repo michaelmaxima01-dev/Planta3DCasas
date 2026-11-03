@@ -9,6 +9,8 @@ import type { Issue, LoadItem, Status } from './analyze';
 import { cachedAnalysis, removePillar } from './ops';
 import { buildStructuralReport } from './report';
 import { STATUS_COLOR } from './StructPlan2D';
+import { ROOF_TYPES } from '../roof/roof';
+import { buildQuantities, fmtQty } from './quantities';
 import { BALDRAME } from './types';
 
 const LABEL: Record<Status, string> = { ok: 'Atende', warn: 'Atenção', fail: 'Não atende' };
@@ -91,6 +93,7 @@ export function StructPanel() {
   const select = useUI((s) => s.select);
   const setUI = useUI((s) => s.set);
   const r = useMemo(() => cachedAnalysis(building), [building]);
+  const quantities = useMemo(() => buildQuantities(building, r), [building, r]);
   const levelName = (id: string) => (id === BALDRAME ? 'Baldrame' : building.levels.find((l) => l.id === id)?.name ?? '');
 
   const goTo = (i: Issue) => {
@@ -252,6 +255,33 @@ export function StructPanel() {
           </button>
         ))}
       </div>
+
+      {r.roof && (
+        <>
+          <h4>Telhado</h4>
+          <Row k="Tipo / inclinação" v={`${ROOF_TYPES.find((t) => t.key === r.roof!.type)?.name} / ${building.roof?.slope ?? 0}%`} />
+          <Row k="Área real" v={`${f(r.roof.geometry.realArea, 1)} m²`} />
+          {r.roof.purlin && <Row k="Terça 6×16" v={r.roof.purlin.sigma <= r.roof.purlin.fd ? 'atende' : 'não atende'} />}
+          {r.roof.elements.slice(0, 2).map((e) => (
+            <Row key={e.name} k={e.name} v={e.quantity} />
+          ))}
+        </>
+      )}
+
+      <details className="materials" open>
+        <summary>Quantitativo de materiais</summary>
+        <table className="calc">
+          <tbody>
+            {quantities.summary.map((x) => (
+              <tr key={x.item}>
+                <td>{x.item}</td>
+                <td>{fmtQty(x)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <p className="hint small">Inclui perdas. Detalhamento por peça no relatório estrutural.</p>
+      </details>
 
       <h4>Responsável técnico</h4>
       <MetaInput label="Engenheiro civil" field="engineer" />

@@ -99,7 +99,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
     setDone(null);
     await new Promise((r) => setTimeout(r, 30)); // deixa a interface mostrar "Gerando…"
     try {
-      const shots = renderViews(building.levels, views3d ? ['front', 'back', 'top'] : ['front']);
+      const shots = renderViews(building.levels, views3d ? ['front', 'back', 'top'] : ['front'], 1600, 1000, building);
       const titles = ['Perspectiva frontal', 'Perspectiva posterior', 'Vista superior'];
       const pdf = buildPdf(
         building.levels,

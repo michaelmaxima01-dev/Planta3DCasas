@@ -17,6 +17,8 @@ interface UIState {
   cutWalls: boolean;
   /** No 3D, mostra também os pavimentos acima do pavimento ativo. */
   showAllLevels: boolean;
+  /** Mostra o telhado no 3D. */
+  showRoof: boolean;
   /** Aba principal: arquitetura ou estrutura. */
   mode: 'arch' | 'struct';
   /** Pinta a estrutura no 3D pela verificação (verde/amarelo/vermelho). */
@@ -26,6 +28,10 @@ interface UIState {
   /** Aba de estrutura mostrando o nível da fundação. */
   foundationView: boolean;
   structTool: StructTool;
+  /** Janela de adicionar andar aberta. */
+  addingLevel: boolean;
+  /** Aviso temporário. */
+  toast: string | null;
   /** Incrementado para pedir que as vistas reenquadrem a planta. */
   fitToken: number;
   setTool: (tool: Tool) => void;
@@ -34,7 +40,7 @@ interface UIState {
   pickCatalog: (id: string) => void;
   setWallDefaults: (p: { thickness?: number; height?: number }) => void;
   toggleCutWalls: () => void;
-  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool'>>) => void;
+  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'toast'>>) => void;
   requestFit: () => void;
 }
 
@@ -47,11 +53,14 @@ export const useUI = create<UIState>()((set) => ({
   wallHeight: 2.8,
   cutWalls: false,
   showAllLevels: false,
+  showRoof: true,
   mode: 'arch',
   colorByStatus: true,
   ghostWalls: true,
   foundationView: false,
   structTool: 'select',
+  addingLevel: false,
+  toast: null,
   fitToken: 0,
   setTool: (tool) => set((s) => ({ tool, catalogId: tool === 'furniture' ? s.catalogId : null })),
   select: (selection) => set({ selection }),

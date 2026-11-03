@@ -53,12 +53,25 @@ Os dados do carimbo (projeto, cliente, endereço, responsável, CAU/CREA) são p
 **Testar:** Exportar → preencher o carimbo → *Baixar PDF* e *Baixar DXF*. Abrir o DXF no AutoCAD
 (ou no LibreCAD/DraftSight, que são gratuitos) e conferir camadas, blocos de móveis e o comando ÁREA num cômodo.
 
-## Pavimentos
+## Andares
 
-No painel **Pavimentos** (à esquerda): escolha o pavimento a editar, **+ Pavimento** cria um andar acima
-(copiando as paredes externas, todas as paredes ou vazio), e dá para renomear e mudar a altura piso a piso.
-Na planta, o pavimento de baixo aparece tracejado e os cantos dele servem de encaixe para alinhar as paredes.
-No 3D, **Todos os pavimentos** mostra também os andares acima do que está sendo editado.
+- **Seletor de andares** fixo no canto da planta (o andar de cima fica no alto, como num elevador);
+  **PageUp/PageDown** sobe e desce.
+- **+ Andar** abre a janela *Adicionar andar*: escolha começar pelo contorno da casa, repetir a planta
+  ou andar vazio. Por padrão o sistema **cria a escada** no andar de baixo (fórmula de Blondel:
+  espelho ≤ 18,5 cm), escolhendo uma parede livre longe das portas, e avisa se algum móvel ficou no caminho.
+- O **piso do novo andar** (laje sobre os cômodos de baixo) aparece na planta e no 3D desde o início;
+  o **vão da escada** fica aberto na laje, marcado com X na planta e com guarda-corpo no 3D.
+- A planta de baixo aparece tracejada e seus cantos servem de encaixe para alinhar as paredes.
+- **Ver andares de cima** mostra o prédio inteiro no 3D, com o telhado.
+
+## Telhado
+
+No painel lateral: formato (duas águas, quatro águas, uma água ou laje plana), telha (cerâmica,
+fibrocimento, metálica), inclinação (com alerta abaixo do mínimo da telha), beiral e direção da cumeeira.
+O telhado aparece no 3D e a planta de cobertura (beiral, cumeeira, espigões e caimento) no último andar.
+Na aba Estrutura: madeiramento (terças sobre pontaletes na laje), verificação da terça, quantidade de
+telhas, ripas, caibros, terças e pontaletes, e o peso do telhado entra nas cargas.
 
 ## Aba Estrutura (botão amarelo **Estrutura**)
 
@@ -75,14 +88,20 @@ Pré-dimensionamento de concreto armado com alvenaria de vedação, da fundaçã
    - pilares por área de influência (coeficientes de canto/extremidade/interno), γn, armadura, esbeltez,
      seção mínima;
    - fundação: sapatas pela tensão admissível do solo (com aviso de sobreposição), radier ou estacas;
-   - paredes do andar de cima sem viga embaixo, pilares sem caminho até a fundação, carga média por m².
+   - paredes do andar de cima sem viga embaixo, pilares sem caminho até a fundação, carga média por m²;
+   - vão da escada descontado da laje e metade do peso da escada apoiada nela.
+   Pilares só descem quando há parede embaixo; paredes de cima sem parede embaixo ganham **viga de
+   transição** automática (nada de pilar solto no meio de um cômodo).
 4. Clique em qualquer peça para ver a **memória de cálculo** e editar a seção; arraste pilares
    (o eixo se move em todos os pavimentos); ferramentas **Pilar** (P) e **Viga** (G) para lançamento manual.
 5. Parâmetros editáveis: solo e tensão admissível, tipo de fundação, profundidade, concreto (C20 a C40),
    tipo de laje, cobertura, sobrecarga, revestimento, peso da alvenaria e vão máximo entre pilares.
-6. **Relatório estrutural (PDF)**: premissas, pendências, plantas de fôrmas por pavimento, locação da
-   fundação, tabelas de lajes/vigas/pilares/fundações, caminho das cargas e **termo de responsabilidade
-   técnica com campo de assinatura** do engenheiro (nome, CREA e ART preenchidos no painel).
+6. **Quantitativo de materiais** (painel e relatório): concreto por peça (sapatas, arranques, baldrames,
+   pilares, vigas, lajes), cimento em sacos, areia, brita, cal, água, aço por bitola, fôrmas, vigotas e
+   lajotas, blocos, argamassas, contrapiso, escavação e telhado, com perdas incluídas.
+7. **Relatório estrutural (PDF)**: premissas, pendências, plantas de fôrmas por pavimento, locação da
+   fundação, tabelas de lajes/vigas/pilares/fundações, caminho das cargas, telhado, quantitativo de
+   materiais e **termo de responsabilidade técnica com campo de assinatura** do engenheiro.
 
 Critérios simplificados das NBR 6118, 6120, 6122 e 8681; a validação final e a assinatura são do
 engenheiro responsável, e a tensão admissível do solo deve vir de sondagem SPT.
@@ -104,6 +123,7 @@ src/
   editor2d/    planta 2D em SVG (ferramentas, cotas, símbolos)
   view3d/      cena 3D (paredes, pisos, aberturas, móveis, luzes)
   export/      levantamento (schedule), desenho técnico comum (drawing), PDF, DXF e imagens 3D
+  roof/        telhado: geometria, madeiramento, verificação e quantitativos
   structure/   modelo estrutural, lançamento automático, análise/verificação, relatório e telas da aba Estrutura
   ui/          barra superior, ferramentas/catálogo, painel de propriedades, janela de exportação
 ```

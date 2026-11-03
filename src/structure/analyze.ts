@@ -15,7 +15,9 @@ import { detectRooms } from '../geometry/rooms';
 import { type Vec2, centroid, cross, dist, pointInPolygon, signedArea, sub } from '../geometry/vec';
 import type { Building, Level, Plan } from '../model/types';
 import { collinearOverlap, onSegment } from './geometry';
-import { BALDRAME, type Beam, type Pillar, ROOFS, type StructureSettings } from './types';
+import { stairRect } from '../model/stairs';
+import { type RoofResult, analyzeRoof } from '../roof/roof';
+import { BALDRAME, type Beam, type Pillar, ROOFS, type RoofKind, type StructureSettings } from './types';
 
 export type Status = 'ok' | 'warn' | 'fail';
 export type ElementKind = 'pillar' | 'beam' | 'slab' | 'footing';
@@ -38,6 +40,9 @@ export interface SlabResult {
   name: string;
   polygon: Vec2[];
   area: number;
+  /** Área de aberturas (vão de escada). */
+  holeArea: number;
+  holes: Vec2[][];
   lx: number;
   ly: number;
   system: string;
@@ -119,6 +124,7 @@ export interface StructureResult {
   pillars: PillarResult[];
   footings: FootingResult[];
   issues: Issue[];
+  roof: RoofResult | null;
   totals: {
     weight: number;
     footprint: number;
@@ -217,6 +223,7 @@ export function analyzeStructure(building: Building): StructureResult {
   const fcd = s.fck / GAMMA_F / 10; // kN/cm²
   const fyd = s.fyk / 1.15 / 10; // kN/cm²
   const levels = building.levels;
+  const roofMaterial: RoofKind = (building.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : s.roof;
   const issues: Issue[] = [];
   const allPillars = Object.values(building.structure.pillars);
   const allBeams = Object.values(building.structure.beams);
@@ -401,14 +408,24 @@ export function analyzeStructure(building: Building): StructureResult {
         { label: 'Peso próprio', value: self },
         { label: 'Contrapiso e revestimento', value: s.finishLoad },
       ];
+      // vão de escada (escada deste pavimento chega no pavimento de cima atravessando esta laje)
+      const stairs = above ? Object.values(plan.furniture).filter((f) => f.catalogId === 'stair' && pointInPolygon(f, r.polygon)) : [];
+      const holeArea = Math.min(area * 0.6, stairs.reduce((acc, f) => acc + f.width * f.depth, 0));
+      const effArea = area - holeArea;
+      if (holeArea > 0) notes.push(`Abertura para escada: ${r2(holeArea)} m² (laje calculada com ${r2(effArea)} m²; bordas do vão precisam de reforço).`);
       if (isTop) {
-        const roof = ROOFS.find((x) => x.key === s.roof)!;
+        const roof = ROOFS.find((x) => x.key === roofMaterial)!;
         loads.push({ label: roof.name, value: roof.load }, { label: 'Sobrecarga de cobertura', value: s.roofLiveLoad });
       } else {
         loads.push({ label: 'Sobrecarga de uso (NBR 6120)', value: s.liveLoad });
       }
+      if (holeArea > 0) {
+        // escada de concreto ≈ 5 kN/m² + sobrecarga 2,5 kN/m² (NBR 6120), metade apoiada nesta laje
+        const Ws = holeArea * (5 + 2.5) * 0.5;
+        loads.push({ label: 'Escada (metade do lance)', value: Ws / effArea });
+      }
       for (const e of extraOnSlab.get(ri) ?? []) {
-        loads.push({ label: `${e.label} (sobre a laje)`, value: e.W / area });
+        loads.push({ label: `${e.label} (sobre a laje)`, value: e.W / effArea });
         status = worst(status, 'warn');
         notes.push(`${e.label} apoiada direto na laje (${r2(e.W)} kN): recomenda-se viga sob a parede.`);
       }
@@ -423,7 +440,7 @@ export function analyzeStructure(building: Building): StructureResult {
         const a = r.polygon[k];
         const b = r.polygon[(k + 1) % n];
         const trib = Math.abs(cross(sub(a, c), sub(b, c))) / 2;
-        const F = trib * q;
+        const F = trib * q * (effArea / area);
         const Le = dist(a, b);
         let covered = 0;
         for (const x of levelBeams) {
@@ -439,7 +456,7 @@ export function analyzeStructure(building: Building): StructureResult {
         status = worst(status, 'warn');
         notes.push(`${r2(unsupported)} kN da laje descarregam em alvenaria sem viga.`);
       }
-      slabs.push({ id: `${level.id}:${r.id}`, code, levelId: level.id, name: r.name, polygon: r.polygon, area, lx, ly, system, thickness, loads, q, total: q * area, status, notes });
+      slabs.push({ id: `${level.id}:${r.id}`, code, levelId: level.id, name: r.name, polygon: r.polygon, area, holeArea, holes: stairs.map(stairRect), lx, ly, system, thickness, loads, q, total: q * effArea, status, notes });
     });
 
     // pilares do pavimento de cima sem pilar embaixo → carga concentrada em viga (transição)
@@ -600,6 +617,11 @@ export function analyzeStructure(building: Building): StructureResult {
   for (const x of footings) push(x.status, 'footing', x.id, BALDRAME, `Fundação ${x.code}`, x.notes.filter((n) => !n.startsWith('Tensão no solo') || x.status === 'fail'));
   if (allPillars.length === 0) issues.push({ status: 'warn', text: 'Nenhum pilar lançado: use "Gerar estrutura".' });
 
+  const roofResult = analyzeRoof(building, roofMaterial, ROOFS.find((x) => x.key === roofMaterial)!.load, s.roofLiveLoad);
+  if (roofResult && roofResult.status !== 'ok') {
+    for (const n of roofResult.notes.slice(0, roofResult.notes.length - 2)) issues.push({ status: roofResult.status, text: `Telhado: ${n}` });
+  }
+
   const order = { fail: 0, warn: 1, ok: 2 };
   issues.sort((a, b) => order[a.status] - order[b.status]);
 
@@ -609,6 +631,7 @@ export function analyzeStructure(building: Building): StructureResult {
     pillars,
     footings,
     issues,
+    roof: roofResult,
     totals: {
       weight,
       footprint,

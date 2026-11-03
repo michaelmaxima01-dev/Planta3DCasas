@@ -665,3 +665,126 @@ table.calc tr.total td {
   font-size: 13px;
   margin-bottom: 8px;
 }
+.materials {
+  margin-top: 8px;
+}
+.materials summary {
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+/* ---------- andares ---------- */
+.views {
+  position: relative;
+}
+.floor-switcher {
+  position: absolute;
+  z-index: 5;
+  top: 34px;
+  left: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: rgba(255, 255, 255, 0.95);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  min-width: 108px;
+}
+.fs-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+  padding: 0 4px 2px;
+}
+.floor-switcher button {
+  text-align: left;
+  font-weight: 600;
+  padding: 7px 10px;
+}
+.floor-switcher button.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.floor-switcher .fs-add {
+  border-style: dashed;
+  color: var(--accent);
+  background: #fff;
+  font-weight: 600;
+  margin-top: 2px;
+}
+.editing {
+  font-style: normal;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 8px;
+  padding: 1px 6px;
+  margin-left: 6px;
+}
+.add-level-modal {
+  width: min(720px, 100%);
+}
+.level-options {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+.level-option {
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 12px;
+  background: #fff;
+  border-radius: 10px;
+}
+.level-option b {
+  font-size: 14px;
+}
+.level-option small {
+  color: var(--muted);
+  line-height: 1.4;
+}
+.lo-icon {
+  font-size: 22px;
+  color: var(--accent);
+}
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 44px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  max-width: min(680px, calc(100vw - 32px));
+  background: #1d2733;
+  color: #f1f5f9;
+  padding: 12px 14px;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+  line-height: 1.45;
+}
+.toast button {
+  background: none;
+  border: none;
+  color: #cbd5e1;
+  padding: 0 2px;
+}
+@media (max-width: 700px) {
+  .level-options {
+    grid-template-columns: 1fr;
+  }
+}
+.warn-text {
+  color: #b35c00;
+}

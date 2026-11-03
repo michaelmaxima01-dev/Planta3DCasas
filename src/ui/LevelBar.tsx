@@ -1,5 +1,3 @@
-import { useState } from 'react';
-import { type NewLevelMode, addLevelOnTop } from '../model/building';
 import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { NumberField, TextField } from './Fields';
@@ -14,7 +12,6 @@ export function LevelBar({ foundation = false }: { foundation?: boolean }) {
   const select = useUI((s) => s.select);
   const foundationView = useUI((s) => s.foundationView);
   const setUI = useUI((s) => s.set);
-  const [adding, setAdding] = useState(false);
   const active = building.levels.find((l) => l.id === levelId) ?? building.levels[0];
 
   const choose = (id: string) => {
@@ -22,22 +19,17 @@ export function LevelBar({ foundation = false }: { foundation?: boolean }) {
     setUI({ foundationView: false });
     select(null);
   };
-  const add = (mode: NewLevelMode) => {
-    let id = '';
-    updateBuilding((b) => {
-      id = addLevelOnTop(b, mode);
-    });
-    setAdding(false);
-    choose(id);
-  };
 
   return (
     <section>
-      <h3>Pavimentos</h3>
+      <h3>Andares</h3>
       <div className="levels">
         {[...building.levels].reverse().map((l) => (
           <button key={l.id} className={!foundationView && l.id === active.id ? 'active' : ''} onClick={() => choose(l.id)}>
-            <span>{l.name}</span>
+            <span>
+              {l.name}
+              {!foundationView && l.id === active.id && <em className="editing">editando</em>}
+            </span>
             <small>+{fmtNumber(l.elevation)} m</small>
           </button>
         ))}
@@ -66,34 +58,27 @@ export function LevelBar({ foundation = false }: { foundation?: boolean }) {
           />
         </div>
       )}
-      {adding ? (
-        <div className="add-level">
-          <p className="hint">Novo pavimento acima de "{building.levels[building.levels.length - 1].name}":</p>
-          <button onClick={() => add('outer')}>Copiar paredes externas</button>
-          <button onClick={() => add('all')}>Copiar todas as paredes</button>
-          <button onClick={() => add('empty')}>Vazio</button>
-          <button onClick={() => setAdding(false)}>Cancelar</button>
-        </div>
-      ) : (
-        <div className="row">
-          <button onClick={() => setAdding(true)}>+ Pavimento</button>
-          {building.levels.length > 1 && !foundationView && (
-            <button
-              onClick={() => {
-                if (!confirm(`Excluir o pavimento "${active.name}" e tudo o que está nele?`)) return;
-                updateBuilding((b) => {
-                  b.levels = b.levels.filter((l) => l.id !== active.id);
-                  for (const p of Object.values(b.structure.pillars)) if (p.levelId === active.id) delete b.structure.pillars[p.id];
-                  for (const v of Object.values(b.structure.beams)) if (v.levelId === active.id) delete b.structure.beams[v.id];
-                });
-                select(null);
-              }}
-            >
-              Excluir
-            </button>
-          )}
-        </div>
-      )}
+      <div className="row">
+        <button className="primary-soft" onClick={() => setUI({ addingLevel: true })}>
+          + Adicionar andar
+        </button>
+        {building.levels.length > 1 && !foundationView && (
+          <button
+            title={`Excluir o ${active.name}`}
+            onClick={() => {
+              if (!confirm(`Excluir o "${active.name}" e tudo o que está nele (paredes, móveis e estrutura)?`)) return;
+              updateBuilding((b) => {
+                b.levels = b.levels.filter((l) => l.id !== active.id);
+                for (const p of Object.values(b.structure.pillars)) if (p.levelId === active.id) delete b.structure.pillars[p.id];
+                for (const v of Object.values(b.structure.beams)) if (v.levelId === active.id) delete b.structure.beams[v.id];
+              });
+              select(null);
+            }}
+          >
+            Excluir
+          </button>
+        )}
+      </div>
     </section>
   );
 }

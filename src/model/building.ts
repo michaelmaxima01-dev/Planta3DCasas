@@ -1,7 +1,9 @@
+import { defaultRoof } from '../roof/roof';
 import { emptyStructure } from '../structure/types';
 import { buildExamplePlan } from './example';
 import { addFurniture, addOpeningAt, addWall, createEmptyPlan, uid } from './ops';
 import type { Building, Level, Plan } from './types';
+import { isStair, placeStairAuto, stairDims } from './stairs';
 
 export const DEFAULT_LEVEL_HEIGHT = 2.95;
 
@@ -10,7 +12,7 @@ export function createLevel(name: string, elevation: number, plan: Plan = create
 }
 
 export function createBuilding(plan: Plan = createEmptyPlan()): Building {
-  return { version: 2, meta: plan.meta, levels: [createLevel('Térreo', 0, plan)], structure: emptyStructure() };
+  return { version: 2, meta: plan.meta, levels: [createLevel('Térreo', 0, plan)], structure: emptyStructure(), roof: defaultRoof() };
 }
 
 /** Aceita o formato antigo (uma planta, versão 1) e o atual (edifício, versão 2). */
@@ -18,7 +20,7 @@ export function migrate(data: unknown): Building | null {
   const d = data as Partial<Building> & Partial<Plan>;
   if (!d || typeof d !== 'object') return null;
   if (d.version === 2 && Array.isArray(d.levels) && d.levels.length > 0) {
-    return { ...(d as Building), structure: { ...emptyStructure(), ...(d.structure ?? {}), settings: { ...emptyStructure().settings, ...(d.structure?.settings ?? {}) } } };
+    return { ...(d as Building), roof: { ...defaultRoof(), ...(d.roof ?? {}) }, structure: { ...emptyStructure(), ...(d.structure ?? {}), settings: { ...emptyStructure().settings, ...(d.structure?.settings ?? {}) } } };
   }
   if (d.version === 1 && d.nodes && d.walls) {
     const plan = { ...createEmptyPlan(), ...(d as Plan) };
@@ -39,8 +41,16 @@ export function restack(b: Building) {
 export type NewLevelMode = 'empty' | 'outer' | 'all';
 
 /** Adiciona um pavimento acima do último, opcionalmente copiando as paredes do pavimento de baixo. */
-export function addLevelOnTop(b: Building, mode: NewLevelMode): string {
+/**
+ * Adiciona um pavimento acima do último. Opcionalmente copia paredes do pavimento de baixo e
+ * cria a escada no pavimento de baixo (o vão na laje do novo pavimento é automático).
+ */
+export function addLevelOnTop(b: Building, mode: NewLevelMode, opts: { stair?: boolean; name?: string } = {}): { id: string; message: string } {
   const top = b.levels[b.levels.length - 1];
+  let stairMsg = '';
+  if (opts.stair !== false && !Object.values(top.plan.furniture).some(isStair)) {
+    stairMsg = ' ' + placeStairAuto(top.plan, top.height).message;
+  }
   const plan = createEmptyPlan();
   if (mode !== 'empty') {
     const src = top.plan;
@@ -51,9 +61,9 @@ export function addLevelOnTop(b: Building, mode: NewLevelMode): string {
     }
   }
   const n = b.levels.length;
-  const level = createLevel(n === 1 ? '1º andar' : `${n}º andar`, top.elevation + top.height, plan, top.height);
+  const level = createLevel(opts.name ?? (n === 1 ? '1º andar' : `${n}º andar`), top.elevation + top.height, plan, top.height);
   b.levels.push(level);
-  return level.id;
+  return { id: level.id, message: `${level.name} criado sobre o ${top.name}.${stairMsg}` };
 }
 
 /** Paredes de fachada: um dos lados não pertence a nenhum cômodo. */
@@ -80,8 +90,23 @@ export function levelBelow(b: Building, levelId: string): Level | undefined {
 /** Sobrado de exemplo: térreo com sala/cozinha, 2 quartos e banheiro; superior com suíte, sala íntima, 2 quartos e banheiro. */
 export function buildExampleBuilding(): Building {
   const ground = buildExamplePlan();
-  for (const f of Object.values(ground.furniture)) if (f.catalogId === 'bookshelf' || f.catalogId === 'plant') delete ground.furniture[f.id];
-  addFurniture(ground, 'stair', { x: 5.47, y: 5.75 }, 0);
+  // sala do sobrado: estar voltado para a parede do meio, escada junto à parede esquerda
+  const drop = new Set(['bookshelf', 'plant', 'tv_rack', 'rug', 'coffee_table', 'sofa3', 'armchair', 'floor_lamp']);
+  for (const f of Object.values(ground.furniture)) if (drop.has(f.catalogId)) delete ground.furniture[f.id];
+  for (const op of Object.values(ground.openings)) {
+    const w = ground.walls[op.wallId];
+    const A = ground.nodes[w.a];
+    const B = ground.nodes[w.b];
+    if (Math.abs(A.x - 6) < 1e-6 && Math.abs(B.x - 6) < 1e-6 && Math.min(A.y, B.y) >= 4 - 1e-6) op.offset = 0.5;
+  }
+  const stair = stairDims(DEFAULT_LEVEL_HEIGHT);
+  addFurniture(ground, 'stair', { x: 0.56, y: 3.5 + stair.depth / 2 }, Math.PI, { depth: stair.depth, height: DEFAULT_LEVEL_HEIGHT });
+  addFurniture(ground, 'tv_rack', { x: 5.72, y: 6.6 }, Math.PI / 2);
+  addFurniture(ground, 'rug', { x: 3.6, y: 6.2 }, Math.PI / 2);
+  addFurniture(ground, 'coffee_table', { x: 3.75, y: 6.2 }, Math.PI / 2);
+  addFurniture(ground, 'sofa3', { x: 2.55, y: 6.2 }, -Math.PI / 2);
+  addFurniture(ground, 'armchair', { x: 3.7, y: 7.4 }, Math.PI);
+  addFurniture(ground, 'floor_lamp', { x: 1.6, y: 7.5 });
 
   const up = createEmptyPlan();
   const EXT = { thickness: 0.2, height: 2.8 };
@@ -96,8 +121,8 @@ export function buildExampleBuilding(): Building {
   addWall(up, { x: 6, y: 0 }, { x: 6, y: 8 }, INT);
   addWall(up, { x: 6, y: 4 }, { x: 10, y: 4 }, INT);
   addWall(up, { x: 8.5, y: 4 }, { x: 8.5, y: 8 }, INT);
-  addWall(up, { x: 0, y: 3.6 }, { x: 6, y: 3.6 }, INT);
-  addOpeningAt(up, { x: 3.0, y: 3.6 }, 'door', { width: 0.8 });
+  addWall(up, { x: 0, y: 3.4 }, { x: 6, y: 3.4 }, INT);
+  addOpeningAt(up, { x: 3.0, y: 3.4 }, 'door', { width: 0.8 });
   addOpeningAt(up, { x: 6, y: 2.0 }, 'door', { width: 0.8, flip: true });
   addOpeningAt(up, { x: 6, y: 4.6 }, 'door', { width: 0.8 });
   addOpeningAt(up, { x: 9.25, y: 4 }, 'door', { width: 0.7, side: true });
@@ -110,8 +135,8 @@ export function buildExampleBuilding(): Building {
   addFurniture(up, 'nightstand', { x: 1.9, y: 0.31 }, 0);
   addFurniture(up, 'nightstand', { x: 4.1, y: 0.31 }, 0);
   addFurniture(up, 'wardrobe', { x: 0.4, y: 2.0 }, -Math.PI / 2);
-  addFurniture(up, 'sofa2', { x: 2.5, y: 7.45 }, Math.PI);
-  addFurniture(up, 'tv_rack', { x: 2.5, y: 4.01 }, 0);
+  addFurniture(up, 'sofa2', { x: 2.9, y: 7.45 }, Math.PI);
+  addFurniture(up, 'tv_rack', { x: 2.9, y: 3.69 }, 0);
   addFurniture(up, 'double_bed', { x: 8.0, y: 1.13 }, 0);
   addFurniture(up, 'wardrobe', { x: 9.6, y: 2.6 }, Math.PI / 2);
   addFurniture(up, 'single_bed', { x: 7.45, y: 7.4 }, Math.PI / 2);
@@ -134,6 +159,7 @@ export function buildExampleBuilding(): Building {
     meta: { title: 'Sobrado exemplo', client: '', address: '', author: '', registry: '', notes: '' },
     levels: [createLevel('Térreo', 0, ground), createLevel('1º andar', DEFAULT_LEVEL_HEIGHT, up)],
     structure: emptyStructure(),
+    roof: defaultRoof(),
   };
   return b;
 }

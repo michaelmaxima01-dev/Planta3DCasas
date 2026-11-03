@@ -88,7 +88,7 @@ export function TopBar() {
       </div>
       <div className="group">
         <button className={showAllLevels ? 'active' : ''} onClick={() => setUI({ showAllLevels: !showAllLevels })} title="No 3D, mostra também os pavimentos acima do que está sendo editado">
-          Todos os pavimentos
+          Ver andares de cima
         </button>
         <button className={cutWalls ? 'active' : ''} onClick={toggleCutWalls} title="Corta as paredes a 1,2 m no 3D">
           Paredes baixas

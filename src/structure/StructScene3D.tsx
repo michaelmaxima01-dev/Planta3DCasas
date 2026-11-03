@@ -9,6 +9,7 @@ import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { prismGeometry } from '../view3d/buildScene';
 import { unitBox } from '../view3d/materials';
+import { roofTimber } from '../roof/roof';
 import type { Status } from './analyze';
 import { cachedAnalysis } from './ops';
 import { STATUS_COLOR } from './StructPlan2D';
@@ -127,16 +128,17 @@ function Contents({ building }: { building: Building }) {
 
       {result.slabs.map((x) => {
         const lvl = levelById.get(x.levelId)!;
-        return <Slab key={x.id} id={x.id} polygon={x.polygon} top={lvl.elevation + lvl.height} t={x.thickness / 100} material={selection?.kind === 'slab' && selection.id === x.id ? selectedMat : colorByStatus && x.status !== 'ok' ? statusMats[x.status] : slabMat} onClick={click('slab', x.id)} />;
+        return <Slab key={x.id} id={x.id} polygon={x.polygon} holes={x.holes} top={lvl.elevation + lvl.height} t={x.thickness / 100} material={selection?.kind === 'slab' && selection.id === x.id ? selectedMat : colorByStatus && x.status !== 'ok' ? statusMats[x.status] : slabMat} onClick={click('slab', x.id)} />;
       })}
 
       {ghostWalls && building.levels.map((l) => <GhostWalls key={l.id} building={building} levelId={l.id} />)}
+      <RoofTimber building={building} />
     </>
   );
 }
 
-function Slab({ polygon, top, t, material, onClick }: { id: string; polygon: { x: number; y: number }[]; top: number; t: number; material: THREE.Material; onClick: (e: ThreeEvent<MouseEvent>) => void }) {
-  const geo = useMemo(() => prismGeometry(polygon, top - t, top), [polygon, top, t]);
+function Slab({ polygon, holes, top, t, material, onClick }: { id: string; polygon: { x: number; y: number }[]; holes: { x: number; y: number }[][]; top: number; t: number; material: THREE.Material; onClick: (e: ThreeEvent<MouseEvent>) => void }) {
+  const geo = useMemo(() => prismGeometry(polygon, top - t, top, holes), [polygon, holes, top, t]);
   useEffect(() => () => geo.dispose(), [geo]);
   return <mesh geometry={geo} material={material} onClick={onClick} receiveShadow />;
 }
@@ -154,5 +156,33 @@ function GhostWalls({ building, levelId }: { building: Building; levelId: string
         <mesh key={i} geometry={g} material={ghostMat} raycast={() => null} />
       ))}
     </>
+  );
+}
+
+const timberMat = new THREE.MeshStandardMaterial({ color: '#a8743f', roughness: 0.8 });
+
+/** Madeiramento do telhado: terças sobre pontaletes apoiados na laje de cobertura. */
+function RoofTimber({ building }: { building: Building }) {
+  const t = useMemo(() => roofTimber(building), [building]);
+  return (
+    <group>
+      {t.purlins.map(([a, b], i) => {
+        const L = Math.hypot(b[0] - a[0], b[1] - a[1]);
+        return (
+          <mesh
+            key={`t${i}`}
+            geometry={unitBox}
+            material={timberMat}
+            position={[(a[0] + b[0]) / 2, a[2], (a[1] + b[1]) / 2]}
+            rotation-y={-Math.atan2(b[1] - a[1], b[0] - a[0])}
+            scale={[L, 0.16, 0.06]}
+            castShadow
+          />
+        );
+      })}
+      {t.posts.map((p, i) => (
+        <mesh key={`p${i}`} geometry={unitBox} material={timberMat} position={[p.x, (p.z0 + p.z1) / 2, p.y]} scale={[0.075, Math.max(0.05, p.z1 - p.z0), 0.075]} castShadow />
+      ))}
+    </group>
   );
 }

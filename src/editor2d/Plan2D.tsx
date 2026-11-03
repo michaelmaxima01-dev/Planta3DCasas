@@ -17,7 +17,9 @@ import {
 } from '../model/ops';
 import type { OpeningKind, SelectionKind } from '../model/types';
 import { levelBelow } from '../model/building';
-import { beginGesture, endGesture, selectPlan, usePlan } from '../store/planStore';
+import { beginGesture, endGesture, selectLevel, selectPlan, usePlan } from '../store/planStore';
+import { isStair, stairRect } from '../model/stairs';
+import { roofGeometry } from '../roof/roof';
 import { useUI } from '../store/uiStore';
 import { fmtArea, fmtMeters } from '../ui/format';
 import { ACCENT, FurnitureSymbol, OpeningSymbol } from './symbols';
@@ -44,6 +46,12 @@ export function Plan2D() {
   const below = usePlan((s) => levelBelow(s.building, s.levelId)?.plan);
   const belowGeoms = useMemo(() => (below ? Object.values(computeWallGeometry(below)) : []), [below]);
   const belowPoints = useMemo(() => (below ? Object.values(below.nodes) : []), [below]);
+  const belowSlab = useMemo(() => (below ? detectRooms(below).map((r) => r.polygon) : []), [below]);
+  const voids = useMemo(() => (below ? Object.values(below.furniture).filter(isStair) : []), [below]);
+  const building = usePlan((s) => s.building);
+  const isTopLevel = usePlan((s) => s.building.levels[s.building.levels.length - 1]?.id === selectLevel(s).id);
+  const showRoof = useUI((s) => s.showRoof);
+  const roofGeo = useMemo(() => (isTopLevel && showRoof ? roofGeometry(building) : null), [isTopLevel, showRoof, building]);
   const update = usePlan((s) => s.update);
   const tool = useUI((s) => s.tool);
   const selection = useUI((s) => s.selection);
@@ -404,6 +412,12 @@ export function Plan2D() {
           ))}
         </g>
 
+        {/* laje (piso disponível) do pavimento, vinda dos cômodos de baixo */}
+        <g pointerEvents="none">
+          {belowSlab.map((poly, i) => (
+            <polygon key={`slab-${i}`} points={pts(poly)} fill="#e9e4da" fillOpacity={0.7} />
+          ))}
+        </g>
         {/* pavimento de baixo, para alinhar paredes por cima */}
         <g pointerEvents="none">
           {belowGeoms.map((g) => (
@@ -437,6 +451,64 @@ export function Plan2D() {
           const g = geoms[op.wallId];
           return g ? <OpeningSymbol key={op.id} op={op} g={g} selected={isSel('opening', op.id)} /> : null;
         })}
+
+        {/* vão da escada (abertura na laje) */}
+        <g pointerEvents="none">
+          {voids.map((f) => {
+            const r = stairRect(f);
+            const c = { x: (r[0].x + r[2].x) / 2, y: (r[0].y + r[2].y) / 2 };
+            return (
+              <g key={`void-${f.id}`}>
+                <polygon points={pts(r)} fill="#ffffff" stroke="#c0392b" strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
+                <line x1={r[0].x} y1={r[0].y} x2={r[2].x} y2={r[2].y} stroke="#c0392b" strokeWidth={0.8} vectorEffect="non-scaling-stroke" />
+                <line x1={r[1].x} y1={r[1].y} x2={r[3].x} y2={r[3].y} stroke="#c0392b" strokeWidth={0.8} vectorEffect="non-scaling-stroke" />
+                <text x={c.x} y={c.y} fontSize={px(11)} textAnchor="middle" dominantBaseline="middle" fill="#c0392b" fontWeight={700} className="room-text">
+                  VAZIO (escada)
+                </text>
+              </g>
+            );
+          })}
+        </g>
+
+        {/* planta de cobertura (último pavimento) */}
+        {roofGeo && (
+          <g pointerEvents="none">
+            <rect
+              x={roofGeo.eave.minX}
+              y={roofGeo.eave.minY}
+              width={roofGeo.eave.maxX - roofGeo.eave.minX}
+              height={roofGeo.eave.maxY - roofGeo.eave.minY}
+              fill="none"
+              stroke="#b4552d"
+              strokeWidth={1.2}
+              strokeDasharray="8 4"
+              vectorEffect="non-scaling-stroke"
+            />
+            {roofGeo.ridges.map(([a, b], i) => (
+              <line key={`rg-${i}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#b4552d" strokeWidth={1.2} strokeDasharray="8 4" vectorEffect="non-scaling-stroke" />
+            ))}
+            {roofGeo.arrows.map(([a, b], i) => {
+              const ang = Math.atan2(b[1] - a[1], b[0] - a[0]);
+              const h = px(8);
+              return (
+                <g key={`ar-${i}`}>
+                  <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="#b4552d" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  <polygon
+                    points={pts([
+                      { x: b[0], y: b[1] },
+                      { x: b[0] - h * Math.cos(ang - 0.4), y: b[1] - h * Math.sin(ang - 0.4) },
+                      { x: b[0] - h * Math.cos(ang + 0.4), y: b[1] - h * Math.sin(ang + 0.4) },
+                    ])}
+                    fill="#b4552d"
+                  />
+                  <text x={(a[0] + b[0]) / 2 + px(6)} y={(a[1] + b[1]) / 2} fontSize={px(10)} fill="#b4552d" className="dim-text">
+                    i={building.roof?.slope ?? 0}%
+                  </text>
+                </g>
+              );
+            })}
+          </g>
+        )}
 
         {/* cotas das paredes */}
         <g pointerEvents="none">

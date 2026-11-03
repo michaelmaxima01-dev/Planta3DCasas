@@ -10,6 +10,8 @@ import { Doc, type Paper, pickScale } from '../export/pdf';
 import { DEFAULT_META } from '../model/finishes';
 import type { Building, ProjectMeta } from '../model/types';
 import type { Status, StructureResult } from './analyze';
+import { ROOF_TYPES } from '../roof/roof';
+import { buildQuantities, fmtQty } from './quantities';
 import { BALDRAME, ROOFS, SOILS } from './types';
 
 const f2 = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -177,7 +179,61 @@ export function appendStructuralSheets(doc: Doc, b: Building, r: StructureResult
   }
   doc.table(a.x, y, [a.w * 0.16, a.w * 0.72, a.w * 0.12], ['Pilar', 'Recebe (kN)', 'Nk total kN'], rows, { align: ['left', 'left', 'right'], rowH: 5.8, onPage: more('Caminho das cargas (cont.)') });
 
-  // ---------- 5. termo de responsabilidade ----------
+  // ---------- 5. telhado ----------
+  if (r.roof) {
+    doc.newSheet('Telhado');
+    a = doc.area;
+    const rf = r.roof;
+    const g = rf.geometry;
+    y = doc.heading(`Telhado - ${ROOF_TYPES.find((t) => t.key === rf.type)?.name ?? ''}`, a.x, a.y + 2);
+    const info: [string, string][] = [
+      ['Cobertura', ROOFS.find((x) => x.key === s.roof)?.name ?? ''],
+      ['Inclinação', `${b.roof?.slope ?? 0}% (${f1((g.angle * 180) / Math.PI)}°)`],
+      ['Beiral', `${f2(b.roof?.overhang ?? 0)} m`],
+      ['Área em projeção / real', `${f2(g.projectedArea)} m² / ${f2(g.realArea)} m²`],
+      ['Altura da cumeeira sobre a laje', `${f2(g.ridgeHeight)} m`],
+      ['Peso sobre a laje de cobertura', `${f2(rf.load)} kN/m² (${f0(rf.weight)} kN)`],
+    ];
+    if (rf.purlin) {
+      const pl = rf.purlin;
+      info.push(['Terça 6×16 (vão 2,0 m entre pontaletes)', `tensão ${f1(pl.sigma)} MPa ≤ ${f1(pl.fd)} MPa; flecha ${f1(pl.deflection)} mm ≤ ${f0(pl.limit)} mm`]);
+    }
+    const half = (a.w - 10) / 2;
+    doc.table(a.x, y, [half * 0.45, half * 0.55], ['Item', 'Valor'], info, { rowH: 6.2 });
+    let yy = doc.heading('Madeiramento e telhas', a.x + half + 10, a.y + 2, 3.4);
+    yy = doc.table(a.x + half + 10, yy, [half * 0.4, half * 0.2, half * 0.2, half * 0.2], ['Elemento', 'Seção', 'Espaçamento', 'Quantidade'], rf.elements.map((e) => [e.name, e.section, e.spacing, e.quantity]));
+    rf.notes.forEach((n, k) => doc.text(`• ${n}`, a.x + half + 10, yy + 6 + k * 5, 2, { color: '#495057', maxWidth: half }));
+  }
+
+  // ---------- 6. quantitativo de materiais ----------
+  {
+    const q = buildQuantities(b, r);
+    doc.newSheet('Quantitativo de materiais');
+    a = doc.area;
+    const half = (a.w - 10) / 2;
+    y = doc.heading('Quantitativo de materiais', a.x, a.y + 2);
+    doc.table(
+      a.x,
+      y,
+      [half * 0.24, half * 0.52, half * 0.24],
+      ['Grupo', 'Item', 'Quantidade'],
+      q.rows.map((x) => [x.group, x.note && !Number.isNaN(x.qty) ? `${x.item} (${x.note})` : x.item, fmtQty(x)]),
+      { align: ['left', 'left', 'right'], rowH: 5.4, onPage: more('Quantitativo (cont.)') },
+    );
+    let yy = doc.heading('Resumo para compra', a.x + half + 10, a.y + 2, 3.6);
+    yy = doc.table(a.x + half + 10, yy, [half * 0.72, half * 0.28], ['Material', 'Quantidade'], q.summary.map((x) => [x.item, fmtQty(x)]), { align: ['left', 'right'], rowH: 6.2 });
+    const notes = [
+      'Perdas incluídas: concreto 5%, aço 10%, argamassas 10%, blocos 5%.',
+      `Concreto virado em obra C${s.fck}: consumo típico de cimento, areia e brita por m³.`,
+      'Se o concreto for usinado, descontar cimento, areia e brita do concreto estrutural.',
+      'Argamassas: assentamento e reboco 1:2:8 (cimento:cal:areia); contrapiso 1:4.',
+      'Aço de vigas e pilares pelo dimensionamento; sapatas e lajes por taxa usual.',
+      'Quantitativo preliminar para orçamento: confirmar com o projeto executivo.',
+    ];
+    notes.forEach((n, k) => doc.text(`• ${n}`, a.x + half + 10, yy + 7 + k * 5.2, 2.1, { color: '#495057', maxWidth: half }));
+  }
+
+  // ---------- 7. termo de responsabilidade ----------
   doc.newSheet('Responsabilidade técnica');
   a = doc.area;
   y = doc.heading('Termo de responsabilidade técnica', a.x, a.y + 4, 5);

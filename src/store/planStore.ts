@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { temporal } from 'zundo';
 import { buildExampleBuilding, migrate, restack } from '../model/building';
+import { syncStairHeights } from '../model/stairs';
 import type { Building, Level, Plan } from '../model/types';
 
 const STORAGE_KEY = 'planta3d:building:v2';
@@ -54,6 +55,7 @@ export const usePlan = create<PlanState>()(
           const draft = structuredClone(s.building);
           fn(draft);
           restack(draft);
+          syncStairHeights(draft);
           const levelId = draft.levels.some((l) => l.id === s.levelId) ? s.levelId : draft.levels[0].id;
           return { building: draft, levelId };
         }),

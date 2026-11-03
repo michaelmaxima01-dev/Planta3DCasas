@@ -13,6 +13,7 @@ import { StructPlan2D } from './structure/StructPlan2D';
 import { StructScene3D } from './structure/StructScene3D';
 import { StructSidebar } from './structure/StructSidebar';
 import { removePillar } from './structure/ops';
+import { AddLevelDialog, FloorSwitcher, Toast } from './ui/Levels';
 
 const HINTS: Record<Tool, string> = {
   select:
@@ -65,6 +66,19 @@ export default function App() {
         return;
       }
       if (mod || e.altKey) return;
+      if (e.key === 'PageUp' || e.key === 'PageDown') {
+        e.preventDefault();
+        const ps = usePlan.getState();
+        const levels = ps.building.levels;
+        const i = levels.findIndex((l) => l.id === ps.levelId);
+        const j = Math.max(0, Math.min(levels.length - 1, i + (e.key === 'PageUp' ? 1 : -1)));
+        if (j !== i || ui.foundationView) {
+          ps.setLevel(levels[j].id);
+          ui.set({ foundationView: false });
+          ui.select(null);
+        }
+        return;
+      }
       if (ui.mode === 'struct') {
         const st: Record<string, 'select' | 'pillar' | 'beam'> = { v: 'select', p: 'pillar', g: 'beam' };
         if (st[key]) ui.set({ structTool: st[key] });
@@ -112,6 +126,7 @@ export default function App() {
       <div className="main">
         {mode === 'arch' ? <Sidebar /> : <StructSidebar />}
         <div className={`views views-${viewMode}`}>
+          <FloorSwitcher />
           {viewMode !== '3d' && (
             <div className="view">
               {mode === 'arch' ? <Plan2D /> : <StructPlan2D />}
@@ -127,6 +142,8 @@ export default function App() {
         </div>
         {mode === 'arch' ? <PropertiesPanel /> : <StructPanel />}
       </div>
+      <AddLevelDialog />
+      <Toast />
       <footer className="statusbar">{mode === 'arch' ? HINTS[tool] : STRUCT_HINTS[structTool]}</footer>
     </div>
   );

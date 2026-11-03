@@ -4,12 +4,14 @@ import { useEffect, useMemo, useState } from 'react';
 import * as THREE from 'three';
 import { CATALOG_BY_ID } from '../catalog/catalog';
 import { type Room, detectRooms } from '../geometry/rooms';
-import type { Vec2 } from '../geometry/vec';
+import { type Vec2, centroid, pointInPolygon } from '../geometry/vec';
 import { type WallGeom, computeWallGeometry, openingCenter, wallPrisms } from '../geometry/walls';
 import { planBounds } from '../model/ops';
 import type { Building, FurnitureItem, Opening, Plan, Selection } from '../model/types';
+import { floorHoles, stairRect } from '../model/stairs';
+import { type P3, ROOF_COLOR, roofGeometry } from '../roof/roof';
 import { prismGeometry } from './buildScene';
-import { selectPlan, usePlan } from '../store/planStore';
+import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import {
   doorLeafMaterial,
@@ -36,18 +38,22 @@ const clickHandler = (select: Select, sel: Selection) => (e: ThreeEvent<MouseEve
   select(sel);
 };
 
-function computeFrame(plan: Plan) {
+function computeFrame(plan: Plan, height = 3) {
   const b = planBounds(plan) ?? { minX: 0, minY: 0, maxX: 10, maxY: 8 };
   const cx = (b.minX + b.maxX) / 2;
   const cz = (b.minY + b.maxY) / 2;
   const r = Math.max(4, Math.hypot(b.maxX - b.minX, b.maxY - b.minY) / 2);
-  return { center: new THREE.Vector3(cx, 0, cz), radius: r, camera: new THREE.Vector3(cx + r * 1.3, r * 1.9, cz + r * 2.0) };
+  return { center: new THREE.Vector3(cx, 0, cz), radius: r, camera: new THREE.Vector3(cx + r * 1.4 + height * 0.4, r * 1.6 + height * 1.1, cz + r * 2.1 + height * 0.6) };
 }
 
 export function Scene3D() {
   const building = usePlan((s) => s.building);
   const levelId = usePlan((s) => s.levelId);
-  const [frame] = useState(() => computeFrame(selectPlan(usePlan.getState())));
+  const [frame] = useState(() => {
+    const b = usePlan.getState().building;
+    const top = b.levels[b.levels.length - 1];
+    return computeFrame(b.levels[0].plan, top.elevation + top.height);
+  });
   return (
     <Canvas
       shadows="percentage"
@@ -61,6 +67,7 @@ export function Scene3D() {
 }
 
 const noSelect: Select = () => {};
+const NO_HOLES: Vec2[][] = [];
 const SLAB_T = 0.12;
 
 function SceneContents({ building, levelId, initialTarget }: { building: Building; levelId: string; initialTarget: THREE.Vector3 }) {
@@ -76,7 +83,14 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
 
   useEffect(() => setWallCut(cutWalls), [cutWalls]);
 
-  const frame = useMemo(() => computeFrame(building.levels[0].plan), [building.levels]);
+  const frame = useMemo(() => {
+    const top = building.levels[building.levels.length - 1];
+    return computeFrame(building.levels[0].plan, top.elevation + top.height);
+  }, [building.levels]);
+  const showRoof = useUI((s) => s.showRoof);
+  // laje de piso de cada pavimento superior = contorno dos cômodos do pavimento de baixo
+  const slabPolys = useMemo(() => building.levels.map((l) => detectRooms(l.plan).map((r) => r.polygon)), [building.levels]);
+  const holesByLevel = useMemo(() => building.levels.map((_, i) => floorHoles(building, i)), [building]);
   const [target] = useState(() => new THREE.Object3D());
   const [orbitTarget] = useState(() => initialTarget.toArray());
 
@@ -110,9 +124,16 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
 
       {visible.map((l, i) => (
         <group key={l.id} position-y={l.elevation}>
-          <LevelContents plan={l.plan} upper={i > 0} selection={l.id === active.id ? selection : null} select={l.id === active.id ? select : noSelect} />
+          <LevelContents
+            plan={l.plan}
+            slabs={i > 0 ? slabPolys[i - 1] : []}
+            stairs={holesByLevel[building.levels.indexOf(l)]}
+            selection={l.id === active.id ? selection : null}
+            select={l.id === active.id ? select : noSelect}
+          />
         </group>
       ))}
+      {showRoof && !cutWalls && visible.length === building.levels.length && <Roof building={building} />}
 
       <OrbitControls makeDefault target={orbitTarget as [number, number, number]} maxPolarAngle={Math.PI / 2.05} enableDamping />
       <CameraFitter token={fitToken} frame={frame} />
@@ -120,9 +141,13 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
   );
 }
 
-function LevelContents({ plan, upper, selection, select }: { plan: Plan; upper: boolean; selection: Selection; select: Select }) {
+function LevelContents({ plan, slabs, stairs, selection, select }: { plan: Plan; slabs: Vec2[][]; stairs: FurnitureItem[]; selection: Selection; select: Select }) {
+  const holes = useMemo(() => stairs.map(stairRect), [stairs]);
+  const rooms0 = useMemo(() => detectRooms(plan), [plan]);
+  const slabHoles = useMemo(() => slabs.map((poly) => holes.filter((h) => pointInPolygon(centroid(h), poly))), [slabs, holes]);
+  const roomHoles = useMemo(() => new Map(rooms0.map((r) => [r.id, holes.filter((h) => pointInPolygon(centroid(h), r.inner))])), [rooms0, holes]);
   const geoms = useMemo(() => computeWallGeometry(plan), [plan]);
-  const rooms = useMemo(() => detectRooms(plan), [plan]);
+  const rooms = rooms0;
   const openingsByWall = useMemo(() => {
     const m: Record<string, Opening[]> = {};
     for (const op of Object.values(plan.openings)) (m[op.wallId] ??= []).push(op);
@@ -130,9 +155,14 @@ function LevelContents({ plan, upper, selection, select }: { plan: Plan; upper: 
   }, [plan.openings]);
   return (
     <>
-      {upper && rooms.map((r) => <Slab key={`slab-${r.id}`} polygon={r.polygon} />)}
+      {slabs.map((poly, i) => (
+        <Slab key={`slab-${i}`} polygon={poly} holes={slabHoles[i]} />
+      ))}
       {rooms.map((r) => (
-        <Floor key={r.id} room={r} selected={selection?.kind === 'room' && selection.id === r.id} select={select} />
+        <Floor key={r.id} room={r} holes={roomHoles.get(r.id) ?? NO_HOLES} selected={selection?.kind === 'room' && selection.id === r.id} select={select} />
+      ))}
+      {stairs.map((f) => (
+        <Railing key={`rail-${f.id}`} stair={f} />
       ))}
       {Object.values(geoms).map((g) => (
         <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} />
@@ -151,8 +181,8 @@ function LevelContents({ plan, upper, selection, select }: { plan: Plan; upper: 
 const slabMaterial = new THREE.MeshStandardMaterial({ color: '#cfcac2', roughness: 0.9 });
 
 /** Laje de piso dos pavimentos superiores (espessura de referência no 3D de arquitetura). */
-function Slab({ polygon }: { polygon: Vec2[] }) {
-  const geo = useMemo(() => prismGeometry(polygon, -SLAB_T, -0.001), [polygon]);
+function Slab({ polygon, holes }: { polygon: Vec2[]; holes: Vec2[][] }) {
+  const geo = useMemo(() => prismGeometry(polygon, -SLAB_T, -0.001, holes), [polygon, holes]);
   useEffect(() => () => geo.dispose(), [geo]);
   return <mesh geometry={geo} material={slabMaterial} castShadow receiveShadow />;
 }
@@ -182,13 +212,70 @@ function Wall3D({ g, openings, selected, select }: { g: WallGeom; openings: Open
   );
 }
 
-function Floor({ room, selected, select }: { room: Room; selected: boolean; select: Select }) {
+/** Guarda-corpo em volta do vão da escada (deixa livre o lado de chegada). */
+function Railing({ stair }: { stair: FurnitureItem }) {
+  const r = stairRect(stair);
+  const edges: [Vec2, Vec2][] = [
+    [r[1], r[2]],
+    [r[2], r[3]],
+    [r[3], r[0]],
+  ];
+  return (
+    <group>
+      {edges.map(([a, b], i) => {
+        const L = Math.hypot(b.x - a.x, b.y - a.y);
+        const rot = -Math.atan2(b.y - a.y, b.x - a.x);
+        const c: [number, number] = [(a.x + b.x) / 2, (a.y + b.y) / 2];
+        return (
+          <group key={i} position={[c[0], 0, c[1]]} rotation-y={rot}>
+            <mesh geometry={unitBox} material={handleMaterial} scale={[L, 0.04, 0.05]} position={[0, 1.0, 0]} />
+            <mesh geometry={unitBox} material={glassMaterial} scale={[L, 0.9, 0.012]} position={[0, 0.52, 0]} />
+          </group>
+        );
+      })}
+    </group>
+  );
+}
+
+/** Telhado: planos da cobertura e oitões. */
+function Roof({ building }: { building: Building }) {
+  const geo = useMemo(() => {
+    const g = roofGeometry(building);
+    if (!g) return null;
+    const toGeo = (faces: P3[][]) => {
+      const pos: number[] = [];
+      for (const f of faces) for (let k = 1; k + 1 < f.length; k++) for (const p of [f[0], f[k], f[k + 1]]) pos.push(p[0], p[2], p[1]);
+      const bg = new THREE.BufferGeometry();
+      bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+      bg.computeVertexNormals();
+      return bg;
+    };
+    return { faces: toGeo(g.faces), gables: toGeo(g.gables) };
+  }, [building]);
+  useEffect(() => () => {
+    geo?.faces.dispose();
+    geo?.gables.dispose();
+  }, [geo]);
+  const material = (building.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : building.structure.settings.roof;
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: ROOF_COLOR[material], roughness: 0.75, side: THREE.DoubleSide }), [material]);
+  const gableMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f1ede6', roughness: 0.9, side: THREE.DoubleSide }), []);
+  if (!geo) return null;
+  return (
+    <group>
+      <mesh geometry={geo.faces} material={mat} castShadow receiveShadow />
+      <mesh geometry={geo.gables} material={gableMat} castShadow receiveShadow />
+    </group>
+  );
+}
+
+function Floor({ room, holes = [], selected, select }: { room: Room; holes?: Vec2[][]; selected: boolean; select: Select }) {
   const geo = useMemo(() => {
     const shape = new THREE.Shape(room.inner.map((p) => new THREE.Vector2(p.x, p.y)));
+    for (const h of holes) shape.holes.push(new THREE.Path(h.map((p) => new THREE.Vector2(p.x, p.y))));
     const g = new THREE.ShapeGeometry(shape);
     g.rotateX(Math.PI / 2);
     return g;
-  }, [room.inner]);
+  }, [room.inner, holes]);
   useEffect(() => () => geo.dispose(), [geo]);
   return (
     <mesh

@@ -1,12 +1,12 @@
 /** Gera imagens da casa em 3D (fora da tela) para o PDF. */
 import * as THREE from 'three';
 import { planBounds } from '../model/ops';
-import type { Level } from '../model/types';
-import { buildHouseGroup } from '../view3d/buildScene';
+import type { Building, Level } from '../model/types';
+import { buildHouseGroup, buildRoofGroup } from '../view3d/buildScene';
 
 export type ViewKind = 'front' | 'back' | 'top';
 
-export function renderViews(levels: Level[], views: ViewKind[], width = 1600, height = 1000): string[] {
+export function renderViews(levels: Level[], views: ViewKind[], width = 1600, height = 1000, building?: Building): string[] {
   const plan = levels[0].plan;
   const renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
   renderer.setSize(width, height, false);
@@ -45,6 +45,7 @@ export function renderViews(levels: Level[], views: ViewKind[], width = 1600, he
     g.position.y = l.elevation;
     scene.add(g);
   });
+  if (building) scene.add(buildRoofGroup(building));
   const top = levels[levels.length - 1];
   const height3d = top.elevation + top.height;
 

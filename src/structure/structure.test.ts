@@ -17,17 +17,51 @@ describe('lançamento automático', () => {
   const [ground, upper] = b.levels;
   const pillars = Object.values(b.structure.pillars);
 
-  it('coloca pilares contínuos do topo até o térreo', () => {
+  it('todo pilar de cima apoia em pilar de baixo ou em viga de transição', () => {
     const up = pillars.filter((p) => p.levelId === upper.id);
     const down = pillars.filter((p) => p.levelId === ground.id);
+    const groundBeams = Object.values(b.structure.beams).filter((v) => v.levelId === ground.id);
     expect(up.length).toBeGreaterThan(8);
-    for (const p of up) expect(down.some((q) => dist(p, q) < 0.05)).toBe(true);
+    for (const p of up) {
+      const onPillar = down.some((q) => dist(p, q) < 0.05);
+      const onBeam = groundBeams.some((v) => {
+        const A = b.structure.pillars[v.a];
+        const B = b.structure.pillars[v.b];
+        const L = dist(A, B);
+        return Math.abs(dist(A, p) + dist(p, B) - L) < 0.02;
+      });
+      expect(onPillar || onBeam).toBe(true);
+    }
   });
 
-  it('respeita o vão máximo entre pilares', () => {
+  it('não cria pilar solto no meio da sala do térreo', () => {
+    const solto = pillars.filter((p) => p.levelId === ground.id && p.x > 0.5 && p.x < 5.5 && p.y > 0.5 && p.y < 7.5);
+    expect(solto).toHaveLength(0);
+  });
+
+  it('cria viga de transição sob a parede do andar de cima que não tem parede embaixo', () => {
+    const transfer = Object.values(b.structure.beams).filter((v) => {
+      if (v.levelId !== ground.id) return false;
+      const A = b.structure.pillars[v.a];
+      const B = b.structure.pillars[v.b];
+      return Math.abs(A.y - 3.4) < 0.05 && Math.abs(B.y - 3.4) < 0.05 && Math.abs(A.y - B.y) < 0.01;
+    });
+    expect(transfer.length).toBeGreaterThan(0);
+  });
+
+  it('respeita o vão máximo nas vigas sobre paredes (transição pode vencer até 7 m)', () => {
     for (const v of Object.values(b.structure.beams)) {
-      const L = dist(b.structure.pillars[v.a], b.structure.pillars[v.b]);
-      expect(L).toBeLessThanOrEqual(b.structure.settings.maxSpan + 1e-6);
+      const A = b.structure.pillars[v.a];
+      const B = b.structure.pillars[v.b];
+      const L = dist(A, B);
+      const level = b.levels.find((l) => l.id === v.levelId);
+      const overWall = level ? Object.values(level.plan.walls).some((w) => {
+        const P = level.plan.nodes[w.a];
+        const Q = level.plan.nodes[w.b];
+        const mid = { x: (A.x + B.x) / 2, y: (A.y + B.y) / 2 };
+        return Math.abs(dist(P, mid) + dist(mid, Q) - dist(P, Q)) < 0.02;
+      }) : true;
+      expect(L).toBeLessThanOrEqual(overWall ? b.structure.settings.maxSpan + 1e-6 : 7);
     }
   });
 
@@ -48,7 +82,7 @@ describe('tramitação de cargas', () => {
     const s = b.structure.settings;
     let expected = r.slabs.reduce((acc, x) => acc + x.total, 0);
     // paredes do pavimento de cima que estão sobre a laje já entram como carga da laje
-    const onSlab = r.slabs.reduce((acc, x) => acc + x.loads.filter((l) => l.label.includes('sobre a laje')).reduce((q, l) => q + l.value * x.area, 0), 0);
+    const onSlab = r.slabs.reduce((acc, x) => acc + x.loads.filter((l) => l.label.includes('sobre a laje')).reduce((q, l) => q + l.value * (x.area - x.holeArea), 0), 0);
     expected -= onSlab;
     for (const l of b.levels) for (const w of Object.values(l.plan.walls)) expected += wallLoadPerMeter(s, l.plan, w.id) * dist(l.plan.nodes[w.a], l.plan.nodes[w.b]);
     for (const v of r.beams) expected += v.loads[0].value * v.L;
@@ -63,9 +97,21 @@ describe('tramitação de cargas', () => {
     expect(r.totals.perArea).toBeLessThan(14);
   });
 
-  it('acusa parede do andar de cima apoiada na laje', () => {
+  it('parede do andar de cima vai para a viga de transição, não para a laje', () => {
     const r = analyzeStructure(sobrado());
-    expect(r.slabs.some((x) => x.loads.some((l) => l.label.includes('sobre a laje')))).toBe(true);
+    expect(r.slabs.some((x) => x.loads.some((l) => l.label.includes('sobre a laje')))).toBe(false);
+    expect(r.issues.filter((i) => i.status === 'fail')).toHaveLength(0);
+  });
+
+  it('acusa parede apoiada na laje quando não há viga embaixo', () => {
+    const b = sobrado();
+    for (const v of Object.values(b.structure.beams)) {
+      const A = b.structure.pillars[v.a];
+      const B = b.structure.pillars[v.b];
+      if (v.levelId === b.levels[0].id && Math.abs(A.y - B.y) < 0.01 && Math.abs(A.y - 3.4) < 0.05) delete b.structure.beams[v.id];
+    }
+    const r = analyzeStructure(b);
+    expect(r.slabs.some((x) => x.loads.some((l) => l.label.includes('sobre a laje'))) || r.issues.some((i) => i.status === 'fail')).toBe(true);
   });
 
   it('dimensiona automaticamente até não haver falhas de seção', () => {

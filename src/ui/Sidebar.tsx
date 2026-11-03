@@ -3,6 +3,7 @@ import { CATALOG, CATEGORIES } from '../catalog/catalog';
 import { type Tool, useUI } from '../store/uiStore';
 import { NumberField } from './Fields';
 import { LevelBar } from './LevelBar';
+import { RoofPanel } from './RoofPanel';
 import { fmtNumber } from './format';
 
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
@@ -48,6 +49,8 @@ export function Sidebar() {
           <NumberField label="Altura" value={wallHeight} min={0.5} max={10} onCommit={(v) => setWallDefaults({ height: v })} />
         </section>
       )}
+
+      <RoofPanel />
 
       <section className="catalog">
         <h3>Catálogo</h3>

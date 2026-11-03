@@ -8,6 +8,7 @@ import { detectRooms } from '../geometry/rooms';
 import type { Vec2 } from '../geometry/vec';
 import { type WallGeom, computeWallGeometry, openingCenter, wallPrisms } from '../geometry/walls';
 import type { Opening, Plan } from '../model/types';
+import { type P3, ROOF_COLOR, roofGeometry } from '../roof/roof';
 import {
   doorLeafMaterial,
   floorMaterial,
@@ -23,8 +24,9 @@ import {
 
 const slabMaterial = new THREE.MeshStandardMaterial({ color: '#cfcac2', roughness: 0.9 });
 
-export function prismGeometry(poly: Vec2[], bottom: number, top: number): THREE.BufferGeometry {
+export function prismGeometry(poly: Vec2[], bottom: number, top: number, holes: Vec2[][] = []): THREE.BufferGeometry {
   const shape = new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.y)));
+  for (const h of holes) shape.holes.push(new THREE.Path(h.map((p) => new THREE.Vector2(p.x, p.y))));
   const g = new THREE.ExtrudeGeometry(shape, { depth: top - bottom, bevelEnabled: false });
   g.rotateX(Math.PI / 2);
   g.translate(0, top, 0);
@@ -138,4 +140,28 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boo
   }
   root.add(furniture);
   return root;
+}
+
+/** Telhado (planos e oitões) como malha Three.js, para imagens e exportações. */
+export function buildRoofGroup(b: import('../model/types').Building): THREE.Group {
+  const grp = new THREE.Group();
+  grp.name = 'Telhado';
+  const g = roofGeometry(b);
+  if (!g) return grp;
+  const toGeo = (faces: P3[][]) => {
+    const pos: number[] = [];
+    for (const f of faces) for (let k = 1; k + 1 < f.length; k++) for (const p of [f[0], f[k], f[k + 1]]) pos.push(p[0], p[2], p[1]);
+    const bg = new THREE.BufferGeometry();
+    bg.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    bg.computeVertexNormals();
+    return bg;
+  };
+  const material = (b.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : b.structure.settings.roof;
+  const roofMesh = new THREE.Mesh(toGeo(g.faces), new THREE.MeshStandardMaterial({ color: ROOF_COLOR[material], roughness: 0.75, side: THREE.DoubleSide }));
+  roofMesh.castShadow = true;
+  roofMesh.receiveShadow = true;
+  const gables = new THREE.Mesh(toGeo(g.gables), new THREE.MeshStandardMaterial({ color: '#f1ede6', roughness: 0.9, side: THREE.DoubleSide }));
+  gables.castShadow = true;
+  grp.add(roofMesh, gables);
+  return grp;
 }

@@ -106,6 +106,7 @@ export interface Building {
   meta?: ProjectMeta;
   levels: Level[];
   structure: import('../structure/types').StructureModel;
+  roof?: import('../roof/roof').RoofModel;
 }
 
 export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room' | 'pillar' | 'beam' | 'slab' | 'footing';
