@@ -1,29 +1,105 @@
-import { Canvas } from '@react-three/fiber';
-import { Grid, OrbitControls } from '@react-three/drei';
-import type { Wall } from './model/types';
-import { WallMesh } from './view3d/WallMesh';
+import { useEffect } from 'react';
+import './App.css';
+import { Plan2D } from './editor2d/Plan2D';
+import { deleteSelection, duplicateFurniture } from './model/ops';
+import { redo, undo, usePlan } from './store/planStore';
+import { type Tool, useUI } from './store/uiStore';
+import { PropertiesPanel } from './ui/PropertiesPanel';
+import { Sidebar } from './ui/Sidebar';
+import { TopBar } from './ui/TopBar';
+import { Scene3D } from './view3d/Scene3D';
 
-// Cômodo de exemplo 5 x 4 m (as junções ainda se sobrepõem; o miter vem no próximo passo).
-const walls: Wall[] = [
-  { id: 'w1', start: { x: 0, y: 0 }, end: { x: 5, y: 0 }, thickness: 0.15, height: 2.8 },
-  { id: 'w2', start: { x: 5, y: 0 }, end: { x: 5, y: 4 }, thickness: 0.15, height: 2.8 },
-  { id: 'w3', start: { x: 5, y: 4 }, end: { x: 0, y: 4 }, thickness: 0.15, height: 2.8 },
-  { id: 'w4', start: { x: 0, y: 4 }, end: { x: 0, y: 0 }, thickness: 0.15, height: 2.8 },
-];
+const HINTS: Record<Tool, string> = {
+  select:
+    'Clique para selecionar • arraste para mover • Delete exclui • R gira o móvel • arraste o fundo (ou botão direito) para mover a vista • roda do mouse = zoom',
+  wall: 'Clique para começar e clique em cada canto • duplo clique, Enter ou Esc termina • encaixa em cantos (verde), paredes (laranja), 45° e grade de 5 cm • Alt desliga o encaixe',
+  door: 'Clique sobre uma parede para inserir a porta • Esc volta para Selecionar',
+  window: 'Clique sobre uma parede para inserir a janela • Esc volta para Selecionar',
+  furniture: 'Clique na planta para posicionar • perto da parede ele encosta sozinho (Alt solta livre) • Esc cancela',
+};
+
+const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', d: 'door', j: 'window' };
 
 export default function App() {
+  const viewMode = useUI((s) => s.viewMode);
+  const tool = useUI((s) => s.tool);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement;
+      if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') return;
+      const ui = useUI.getState();
+      const key = e.key.toLowerCase();
+      const mod = e.ctrlKey || e.metaKey;
+      if (mod && key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) redo();
+        else undo();
+        return;
+      }
+      if (mod && key === 'y') {
+        e.preventDefault();
+        redo();
+        return;
+      }
+      if (mod && key === 'd' && ui.selection?.kind === 'furniture') {
+        e.preventDefault();
+        let id: string | null = null;
+        usePlan.getState().update((d) => {
+          id = duplicateFurniture(d, ui.selection!.id);
+        });
+        if (id) ui.select({ kind: 'furniture', id });
+        return;
+      }
+      if (mod || e.altKey) return;
+      if (KEY_TOOLS[key]) {
+        ui.setTool(KEY_TOOLS[key]);
+        return;
+      }
+      if (e.key === 'Escape') {
+        if (ui.tool !== 'select') ui.setTool('select');
+        else ui.select(null);
+        return;
+      }
+      if ((e.key === 'Delete' || e.key === 'Backspace') && ui.selection) {
+        e.preventDefault();
+        usePlan.getState().update((d) => deleteSelection(d, ui.selection));
+        ui.select(null);
+        return;
+      }
+      if (key === 'r' && ui.selection?.kind === 'furniture') {
+        const id = ui.selection.id;
+        usePlan.getState().update((d) => {
+          if (d.furniture[id]) d.furniture[id].rotation += Math.PI / 2;
+        });
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
-    <Canvas shadows camera={{ position: [9, 8, 9], fov: 45 }}>
-      <color attach="background" args={['#f4f5f7']} />
-      <ambientLight intensity={0.5} />
-      <directionalLight position={[6, 10, 4]} intensity={1.5} castShadow />
-      <Grid args={[30, 30]} cellSize={0.5} sectionSize={1} infiniteGrid fadeDistance={40} />
-      <group position={[-2.5, 0, 2]}>
-        {walls.map((w) => (
-          <WallMesh key={w.id} wall={w} />
-        ))}
-      </group>
-      <OrbitControls makeDefault />
-    </Canvas>
+    <div className="app">
+      <TopBar />
+      <div className="main">
+        <Sidebar />
+        <div className={`views views-${viewMode}`}>
+          {viewMode !== '3d' && (
+            <div className="view">
+              <Plan2D />
+              <span className="view-label">Planta 2D</span>
+            </div>
+          )}
+          {viewMode !== '2d' && (
+            <div className="view">
+              <Scene3D />
+              <span className="view-label">3D • arraste para girar, botão direito para mover</span>
+            </div>
+          )}
+        </div>
+        <PropertiesPanel />
+      </div>
+      <footer className="statusbar">{HINTS[tool]}</footer>
+    </div>
   );
 }

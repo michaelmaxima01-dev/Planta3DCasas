@@ -14,11 +14,8 @@
     "@react-three/drei": "^10.7.9",
     "@react-three/fiber": "^9.8.2",
     "earcut": "^3.2.4",
-    "konva": "^10.9.1",
-    "manifold-3d": "^3.5.4",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
-    "react-konva": "^19.3.2",
     "three": "^0.187.0",
     "zundo": "^2.3.0",
     "zustand": "^5.0.16"
