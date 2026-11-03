@@ -50,7 +50,7 @@ button.active {
 .topbar {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 10px;
   padding: 8px 14px;
   background: #1d2733;
   color: #e9eef5;

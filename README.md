@@ -187,3 +187,11 @@ A geometria fica isolada em `src/geometry` para poder ser trocada por um núcleo
 4. Acesse o domínio. Login: `admin` / `admin2410` (definido em `src/ui/Login.tsx`).
 
 O `.htaccess` incluso ativa compressão e cache. Para forçar HTTPS, descomente as 2 linhas indicadas nele.
+
+## Pacote de objetos v6.0
+
+- **Planos prontos** (barra lateral): garagem de 1, 2 (lado a lado ou em fila) e 3 vagas, com portão, vagas demarcadas 2,50 × 5,00 m e carros; quartos, banheiro, cozinha, cozinha americana com balcão, área gourmet e jardim de inverno. Um clique na planta cria as paredes, nomeia o cômodo e mobilia.
+- **Novas categorias**: Jardim (árvores, ipês, palmeira, bambu, cerca viva, canteiros, horta, gramado, deck, pergolado, quiosque, fonte, espelho d'água, iluminação), Garagem (vagas, SUV, hatch, moto, bicicleta, bancada, estantes), Vidros e divisórias (vidro temperado, parede de vidro com caixilho, box blindex, guarda-corpo, cobogó, painel ripado), Área gourmet (churrasqueira com bancada, forno de pizza, fogão a lenha, cervejeira, rede, spa).
+- **Cozinha**: balcão de mármore (divisória cozinha/sala), com banquetas, península e ilha; pia com gabinete, cozinha planejada em L, torre quente, mesa 6 e 8 lugares, canto alemão.
+- **Escadas**: L virando à esquerda, L com leque, U lance duplo, U de três lances, imperial, concreto armado, metálica, degraus de entrada e rampa acessível (NBR 9050).
+- **Esquadrias**: portão basculante e de correr, porta de vidro temperado, porta camarão, janela com veneziana, vidro fixo e pele de vidro.

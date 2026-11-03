@@ -37,6 +37,8 @@ interface UIState {
   windowStyle: OpeningStyle;
   /** Aviso temporário. */
   toast: string | null;
+  /** Plano pronto (garagem, quarto…) aguardando o clique na planta. */
+  roomPreset: string | null;
   /** Incrementado para pedir que as vistas reenquadrem a planta. */
   fitToken: number;
   setTool: (tool: Tool) => void;
@@ -45,7 +47,7 @@ interface UIState {
   pickCatalog: (id: string) => void;
   setWallDefaults: (p: { thickness?: number; height?: number }) => void;
   toggleCutWalls: () => void;
-  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'annotColor' | 'toast' | 'doorStyle' | 'windowStyle'>>) => void;
+  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'annotColor' | 'toast' | 'doorStyle' | 'windowStyle' | 'roomPreset'>>) => void;
   requestFit: () => void;
 }
 
@@ -69,11 +71,12 @@ export const useUI = create<UIState>()((set) => ({
   doorStyle: 'giro',
   windowStyle: 'janela_correr',
   toast: null,
+  roomPreset: null,
   fitToken: 0,
-  setTool: (tool) => set((s) => ({ tool, catalogId: tool === 'furniture' ? s.catalogId : null })),
+  setTool: (tool) => set((s) => ({ tool, catalogId: tool === 'furniture' ? s.catalogId : null, roomPreset: tool === 'room' ? s.roomPreset : null })),
   select: (selection) => set({ selection }),
   setViewMode: (viewMode) => set({ viewMode }),
-  pickCatalog: (id) => set({ tool: 'furniture', catalogId: id, selection: null }),
+  pickCatalog: (id) => set({ tool: 'furniture', catalogId: id, selection: null, roomPreset: null }),
   setWallDefaults: (p) =>
     set((s) => ({ wallThickness: p.thickness ?? s.wallThickness, wallHeight: p.height ?? s.wallHeight })),
   toggleCutWalls: () => set((s) => ({ cutWalls: !s.cutWalls })),

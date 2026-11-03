@@ -1,6 +1,7 @@
 import { type PointerEvent as RPointerEvent, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { CATALOG_BY_ID } from '../catalog/catalog';
 import { detectRooms } from '../geometry/rooms';
+import { ROOM_PRESETS, applyPreset } from '../model/presets';
 import { type SnapResult, roundTo, snapFurnitureToWall, snapPoint } from '../geometry/snap';
 import { type Vec2, add, clamp, dist, dot, mul, normalize, perp, pointInPolygon, projectOnSegment, sub } from '../geometry/vec';
 import { type WallGeom, clampOpeningOffset, computeWallGeometry } from '../geometry/walls';
@@ -77,6 +78,8 @@ export function Plan2D() {
   const [chain, setChain] = useState<Vec2 | null>(null);
   /** Canto inicial da ferramenta Cômodo (retângulo). */
   const [roomStart, setRoomStart] = useState<Vec2 | null>(null);
+  const roomPresetKey = useUI((s) => s.roomPreset);
+  const roomPresetDef = ROOM_PRESETS.find((r) => r.key === roomPresetKey);
   /** Medida digitada durante o desenho (ex.: "3,5" ou "4x3"). */
   const [typed, setTyped] = useState('');
   const [shiftKey, setShiftKey] = useState(false);
@@ -310,6 +313,15 @@ export function Plan2D() {
 
     if (tool === 'room') {
       const sn = snapPoint(plan, p, { pxPerMeter: view.s, disabled: e.altKey, extraPoints: belowPoints });
+      const preset = ROOM_PRESETS.find((r) => r.key === useUI.getState().roomPreset);
+      if (preset) {
+        let placed = 0;
+        update((d) => {
+          placed = applyPreset(d, preset, sn.point, { thickness: wallThickness, height: wallHeight });
+        });
+        useUI.getState().set({ roomPreset: null, toast: `${preset.name} criado${placed ? ` com ${placed} objetos` : ''}. Ajuste com as alças ou Ctrl+Z para desfazer.` });
+        return;
+      }
       if (!roomStart) {
         setRoomStart(sn.point);
         setTyped('');
@@ -879,7 +891,15 @@ export function Plan2D() {
         {furniturePreview}
 
         {/* pré-visualização do cômodo retangular */}
-        {tool === 'room' && snap && (
+        {tool === 'room' && snap && roomPresetDef && (
+          <g pointerEvents="none">
+            <rect x={snap.point.x} y={snap.point.y} width={roomPresetDef.w} height={roomPresetDef.h} fill={ACCENT} fillOpacity={0.12} stroke={ACCENT} strokeWidth={wallThickness} strokeOpacity={0.5} />
+            <text x={snap.point.x + roomPresetDef.w / 2} y={snap.point.y + roomPresetDef.h / 2} fontSize={px(12)} textAnchor="middle" fill={ACCENT} fontWeight={700} className="dim-text">
+              {roomPresetDef.name}
+            </text>
+          </g>
+        )}
+        {tool === 'room' && snap && !roomPresetDef && (
           <g pointerEvents="none">
             {roomStart &&
               (() => {

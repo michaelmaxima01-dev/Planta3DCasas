@@ -76,6 +76,39 @@ export function OpeningSymbol({
           <line x1={-w / 4} y1={-t / 2 - 0.12} x2={w / 4} y2={-t / 2 - 0.12} stroke={stroke} strokeWidth={0.8} vectorEffect="non-scaling-stroke" markerEnd="" />
         </>
       )}
+      {op.kind === 'door' && style === 'porta_vidro' && (
+        <>
+          <line x1={-w / 2} y1={-t / 6} x2={0.05} y2={-t / 6} stroke="#3b8fc4" strokeWidth={sw + 1} vectorEffect="non-scaling-stroke" />
+          <line x1={-0.05} y1={t / 6} x2={w / 2} y2={t / 6} stroke="#3b8fc4" strokeWidth={sw + 1} vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      {op.kind === 'door' && style === 'camarao' && (
+        <polyline
+          points={[0, 1, 2, 3, 4].map((i) => `${-w / 2 + (i * w) / 4},${s * (t / 2 + (i % 2 ? w / 10 : 0.02))}`).join(' ')}
+          fill="none" stroke={stroke} strokeWidth={sw + 0.5} vectorEffect="non-scaling-stroke"
+        />
+      )}
+      {op.kind === 'door' && style === 'portao_basculante' && (
+        <>
+          <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke={stroke} strokeWidth={sw + 1.5} vectorEffect="non-scaling-stroke" />
+          <rect x={-w / 2} y={s > 0 ? t / 2 : -t / 2 - w * 0.35} width={w} height={w * 0.35} fill="none" stroke={stroke} strokeWidth={0.8} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      {op.kind === 'door' && style === 'portao_correr' && (
+        <>
+          <line x1={-w / 2} y1={s * (t / 2 + 0.06)} x2={w / 2} y2={s * (t / 2 + 0.06)} stroke={stroke} strokeWidth={sw + 1.5} vectorEffect="non-scaling-stroke" />
+          <line x1={w / 2} y1={s * (t / 2 + 0.06)} x2={w * 1.4} y2={s * (t / 2 + 0.06)} stroke={stroke} strokeWidth={0.8} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+        </>
+      )}
+      {op.kind === 'window' && (style === 'vidro_fixo' || style === 'pele_vidro') && (
+        <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke="#3b8fc4" strokeWidth={sw + 1} vectorEffect="non-scaling-stroke" />
+      )}
+      {op.kind === 'window' && style === 'veneziana' && (
+        <>
+          <line x1={-w / 2} y1={-t / 5} x2={w / 2} y2={-t / 5} stroke={stroke} strokeWidth={0.6} vectorEffect="non-scaling-stroke" />
+          <line x1={-w / 2} y1={t / 5} x2={w / 2} y2={t / 5} stroke={stroke} strokeWidth={sw + 0.8} vectorEffect="non-scaling-stroke" />
+        </>
+      )}
       {op.kind === 'window' && (style === 'basculante' || style === 'maxim_ar') && (
         <>
           <line x1={-w / 2} y1={0} x2={w / 2} y2={0} stroke={stroke} strokeWidth={sw} vectorEffect="non-scaling-stroke" />

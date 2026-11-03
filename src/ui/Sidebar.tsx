@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { CATALOG, CATEGORIES } from '../catalog/catalog';
+import { ROOM_PRESETS } from '../model/presets';
 import { type Tool, useUI } from '../store/uiStore';
 import { selectPlan, usePlan } from '../store/planStore';
 import { NumberField } from './Fields';
@@ -41,7 +42,10 @@ export function Sidebar() {
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<string | null>(CATEGORIES[0]);
 
-  const items = CATALOG.filter((c) => c.name.toLowerCase().includes(filter.toLowerCase()));
+  const norm = (t: string) => t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const items = CATALOG.filter((c) => norm(`${c.name} ${c.category}`).includes(norm(filter)));
+  const roomPreset = useUI((s) => s.roomPreset);
+  const [presetGroup, setPresetGroup] = useState<string | null>(null);
 
   return (
     <aside className="sidebar">
@@ -110,11 +114,43 @@ export function Sidebar() {
         </section>
       )}
 
+      <section className="catalog">
+        <h3>Planos prontos</h3>
+        <p className="hint">Escolha e clique na planta: cria as paredes, o portão e já mobilia.</p>
+        {[...new Set(ROOM_PRESETS.map((r) => r.group))].map((g) => {
+          const list = ROOM_PRESETS.filter((r) => r.group === g);
+          const expanded = presetGroup === g || list.some((r) => r.key === roomPreset);
+          return (
+            <div key={g} className="category">
+              <button className="category-title" onClick={() => setPresetGroup(presetGroup === g ? null : g)}>
+                {expanded ? '▾' : '▸'} {g} <small>{list.length}</small>
+              </button>
+              {expanded &&
+                list.map((r) => (
+                  <button
+                    key={r.key}
+                    className={`catalog-item ${tool === 'room' && roomPreset === r.key ? 'active' : ''}`}
+                    onClick={() => {
+                      setTool('room');
+                      setUI({ roomPreset: r.key });
+                    }}
+                  >
+                    <span>{r.name.replace(/ \(.*\)$/, '')}</span>
+                    <small>
+                      {fmtNumber(r.w)} × {fmtNumber(r.h)} m
+                    </small>
+                  </button>
+                ))}
+            </div>
+          );
+        })}
+      </section>
+
       <RoofPanel />
 
       <section className="catalog">
         <h3>Catálogo</h3>
-        <input className="search" placeholder="Buscar móvel…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <input className="search" placeholder="Buscar: árvore, garagem, vidro, balcão…" value={filter} onChange={(e) => setFilter(e.target.value)} />
         {CATEGORIES.map((cat) => {
           const list = items.filter((i) => i.category === cat);
           if (list.length === 0) return null;

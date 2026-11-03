@@ -19,7 +19,8 @@ export interface Wall {
 }
 
 export type OpeningKind = 'door' | 'window';
-export type OpeningStyle = 'giro' | 'correr' | 'dupla' | 'pivotante' | 'janela_correr' | 'basculante' | 'maxim_ar' | 'porta_janela';
+export type OpeningStyle = 'giro' | 'correr' | 'dupla' | 'pivotante' | 'janela_correr' | 'basculante' | 'maxim_ar' | 'porta_janela'
+  | 'portao_basculante' | 'portao_correr' | 'porta_vidro' | 'camarao' | 'vidro_fixo' | 'pele_vidro' | 'veneziana';
 
 /** Porta ou janela hospedada em uma parede. */
 export interface Opening {

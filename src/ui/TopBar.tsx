@@ -101,7 +101,7 @@ export function TopBar() {
         <button onClick={requestFit} title="Enquadrar o projeto nas vistas">Enquadrar</button>
       </div>
       <div className="group">
-        <button onClick={() => confirm('Sair do sistema? Salve o projeto antes, se precisar.') && logout()} title="Sair do sistema">Sair</button>
+        <button onClick={() => confirm('Sair do sistema? Salve o projeto antes, se precisar.') && logout()} title="Sair do sistema">⏻ Sair</button>
       </div>
       {exporting && <ExportDialog onClose={() => setExporting(false)} />}
     </header>

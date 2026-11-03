@@ -76,7 +76,19 @@ export const ROOM_TYPES: RoomType[] = [
   },
   {
     key: 'garagem', name: 'Garagem', color: '#a7a9ac',
-    items: [{ id: 'car', place: { kind: 'center' } }, W('shoe_rack')],
+    items: [{ id: 'car', place: { kind: 'center' } }, { id: 'parking_space', place: { kind: 'under', ref: 0 } }, W('workbench'), W('steel_shelf'), W('bike_rack'), W('trash_bins')],
+  },
+  {
+    key: 'cozinha_americana', name: 'Cozinha americana', color: '#ece7df',
+    items: [W('sink_cabinet', 'center'), W('stove'), W('fridge'), { id: 'marble_counter_stools', place: { kind: 'opposite', ref: 0 } }, W('oven_tower')],
+  },
+  {
+    key: 'gourmet', name: 'Área gourmet', color: '#c9b79c',
+    items: [W('bbq_gourmet', 'center'), { id: 'gourmet_table', place: { kind: 'center' } }, W('beer_fridge'), W('pot_large'), W('lounger')],
+  },
+  {
+    key: 'jardim_inverno', name: 'Jardim de inverno', color: '#b9c4b0',
+    items: [{ id: 'fountain', place: { kind: 'center' } }, W('pot_palm'), W('pot_large'), W('garden_bench', 'center'), W('cactus')],
   },
   {
     key: 'varanda', name: 'Varanda / área externa', color: '#b9c4b0',
@@ -128,7 +140,7 @@ export function furnishRoom(plan: Plan, room: Room, typeKey: string): { placed: 
     .map((o) => ({ c: openingCenter(geoms[o.wallId], o), w: o.width }));
   const occupied = (skip?: string) =>
     Object.values(plan.furniture)
-      .filter((f) => f.id !== skip && (CATALOG_BY_ID[f.catalogId]?.elevation ?? 0) < 1.2 && f.catalogId !== 'rug')
+      .filter((f) => f.id !== skip && (CATALOG_BY_ID[f.catalogId]?.elevation ?? 0) < 1.2 && f.height > 0.05 && !f.catalogId.startsWith('rug'))
       .map(rectOf);
   const fits = (f: Pick<FurnitureItem, 'x' | 'y' | 'width' | 'depth' | 'rotation'>, ignoreOverlap = false, skip?: string) => {
     const r = rectOf(f);

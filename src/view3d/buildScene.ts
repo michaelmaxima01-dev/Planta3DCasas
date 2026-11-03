@@ -86,6 +86,24 @@ export function openingParts(op: Opening, g: WallGeom): OpeningPart[] {
         out.push(P([inner * 0.55, lh, 0.035], [(-sd * inner * 0.225), lh / 2, sd * 0.025], 'leaf'));
         out.push(P([0.025, 0.25, 0.05], [-sd * (inner * 0.225 - inner * 0.25), 1.0, sd * 0.05], 'handle'));
       }
+    } else if (style === 'porta_vidro') {
+      for (const sd of [-1, 1]) {
+        out.push(P([inner * 0.52, lh, 0.012], [-sd * inner * 0.24, lh / 2, sd * 0.02], 'glass'));
+        out.push(P([0.02, 0.6, 0.04], [-sd * 0.04, 1.05, sd * 0.04], 'handle'));
+      }
+      out.push(P([inner, 0.04, 0.06], [0, lh - 0.02, 0], 'frame'));
+    } else if (style === 'camarao') {
+      const k = 4;
+      for (let i = 0; i < k; i++) out.push(P([inner / k - 0.01, lh, 0.035], [-inner / 2 + (i + 0.5) * (inner / k), lh / 2, (i % 2 ? 1 : -1) * 0.03], 'leaf'));
+    } else if (style === 'portao_basculante') {
+      out.push(P([inner, lh, 0.05], [0, lh / 2, 0], 'leaf'));
+      const ribs = Math.max(3, Math.round(lh / 0.25));
+      for (let i = 1; i < ribs; i++) out.push(P([inner, 0.025, 0.07], [0, (i * lh) / ribs, 0], 'frame'));
+    } else if (style === 'portao_correr') {
+      out.push(P([inner, 0.08, 0.06], [0, 0.1, 0], 'frame'));
+      out.push(P([inner, 0.08, 0.06], [0, lh - 0.1, 0], 'frame'));
+      const bars = Math.max(4, Math.round(inner / 0.12));
+      for (let i = 0; i <= bars; i++) out.push(P([0.03, lh - 0.1, 0.03], [-inner / 2 + (i * inner) / bars, lh / 2, 0], 'frame'));
     } else if (style === 'pivotante') {
       out.push(P([inner, lh, 0.05], [0, lh / 2, 0], 'leaf'));
       out.push(P([0.035, 0.9, 0.12], [(op.flip ? -1 : 1) * (inner / 2 - 0.15), 1.05, 0], 'handle'));
@@ -103,6 +121,17 @@ export function openingParts(op: Opening, g: WallGeom): OpeningPart[] {
   const gh = h - (base > 0.01 ? 2 * f : f);
   if (style === 'janela_correr' || style === 'porta_janela') out.push(P([f * 0.6, gh, 0.05], [0, gy, 0], 'frame'));
   if (style === 'basculante') out.push(P([inner, 0.03, 0.04], [0, gy, 0], 'frame'));
+  if (style === 'pele_vidro') {
+    const cols = Math.max(2, Math.round(inner / 1.0));
+    for (let i = 1; i < cols; i++) out.push(P([0.05, gh, 0.08], [-inner / 2 + (i * inner) / cols, gy, 0], 'frame'));
+    out.push(P([inner, 0.05, 0.08], [0, base + Math.min(1.1, h * 0.45), 0], 'frame'));
+  }
+  if (style === 'veneziana') {
+    // folhas de veneziana (metade) do lado de fora + vidro
+    out.push(P([f * 0.6, gh, 0.05], [0, gy, 0], 'frame'));
+    const slats = Math.max(4, Math.round(gh / 0.08));
+    for (let i = 0; i < slats; i++) out.push(P([inner / 2, 0.05, 0.02], [-inner / 4, gy - gh / 2 + (i + 0.5) * (gh / slats), t / 2 - 0.02], 'leaf'));
+  }
   out.push(P([inner, gh, 0.01], [0, gy, 0], 'glass'));
   return out;
 }

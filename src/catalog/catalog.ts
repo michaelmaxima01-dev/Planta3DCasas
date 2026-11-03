@@ -741,6 +741,764 @@ CATALOG.push(
   },
 );
 
+
+// =====================================================================
+// Pacote de objetos v6: jardim, garagem, vidros, balcões, área gourmet
+// e escadas usuais no Brasil.
+// =====================================================================
+
+const GREEN = '#4f7f3a';
+const GREEN_L = '#6aa64f';
+const GREEN_D = '#3b6430';
+const SOIL = '#6b4a32';
+const STONE = '#b8b2a7';
+const CONCRETE = '#a7a9ac';
+const MARBLE = '#f1efea';
+const MARBLE_V = '#d9d6cf';
+const GRANITE = '#2f3134';
+
+/** Espelha as peças em X (escada virando para o outro lado). */
+const mirrorX = (ps: Part[]): Part[] => ps.map((p) => ({ ...p, x: -p.x, ry: p.ry ? -p.ry : p.ry }));
+/** Peça girada em planta (ângulo a). */
+const R = (p: Part, a: number): Part => ({ ...p, ry: a });
+const stepColor = (i: number) => (i % 2 ? STEP_B : STEP_A);
+
+/** Folhagem: copa em camadas de esferas. */
+function crown(cx: number, cz: number, w: number, d: number, y0: number, hh: number, color: string): Part[] {
+  return [
+    S(cx, cz, w, d, y0, hh, color, 'matte'),
+    S(cx + w * 0.18, cz - d * 0.12, w * 0.6, d * 0.6, y0 + hh * 0.35, hh * 0.6, shade(color, 18), 'matte'),
+    S(cx - w * 0.2, cz + d * 0.15, w * 0.55, d * 0.55, y0 + hh * 0.25, hh * 0.55, shade(color, -12), 'matte'),
+  ];
+}
+
+function car(w: number, d: number, h: number, body: string, tall = false): Part[] {
+  const wheel = tall ? 0.72 : 0.64;
+  return [
+    B(0, 0, w, d, wheel * 0.45, tall ? 0.75 : 0.6, body, 'metal'),
+    B(0, tall ? 0.25 : 0.1, w * 0.92, d * (tall ? 0.7 : 0.52), wheel * 0.45 + (tall ? 0.75 : 0.6), h - wheel * 0.45 - (tall ? 0.75 : 0.6), '#2b3a4a', 'glass'),
+    B(0, d / 2 - 0.02, w * 0.8, 0.04, wheel * 0.45 + 0.2, 0.12, '#e8e8e8', 'glass'),
+    ...[[-1, -1], [1, -1], [-1, 1], [1, 1]].map(([sx, sz]) => ({ shape: 'cyl' as const, x: sx * (w / 2 - 0.1), y: wheel / 2, z: sz * (d / 2 - 0.8), sx: 0.22, sy: wheel, sz: wheel, color: '#1b1b1b', material: 'matte' as const, ry: Math.PI / 2 })),
+  ];
+}
+
+/** Balcão com tampo de mármore que avança para os dois lados (banquetas dos dois lados). */
+function marbleCounter(w: number, d: number, h: number, sink = false, cooktop = false): Part[] {
+  const base = d * 0.55;
+  const p: Part[] = [
+    B(0, 0, w - 0.1, base, 0, h - 0.04, '#e9e4dc', 'wood'),
+    B(0, 0, w, d, h - 0.04, 0.04, MARBLE, 'ceramic'),
+    B(-w / 2 + 0.02, 0, 0.04, d, 0, h - 0.04, MARBLE, 'ceramic'),
+    B(w / 2 - 0.02, 0, 0.04, d, 0, h - 0.04, MARBLE, 'ceramic'),
+    B(0, 0, w * 0.9, 0.006, h - 0.001, 0.002, MARBLE_V, 'ceramic'),
+  ];
+  if (sink) p.push(B(-w / 4, 0, 0.5, 0.36, h - 0.03, 0.01, '#9aa3ab', 'metal'), C(-w / 4, -0.2, 0.03, 0.03, h, 0.3, STEEL, 'metal'));
+  if (cooktop) p.push(B(w / 4, 0, 0.6, 0.5, h, 0.01, BLACK, 'glass'));
+  return p;
+}
+
+function stepsRun(x: number, zStart: number, dirZ: number, width: number, tread: number, count: number, from: number, rise: number, color: (i: number) => string = stepColor): Part[] {
+  const out: Part[] = [];
+  for (let i = 0; i < count; i++) out.push(B(x, zStart + dirZ * (i + 0.5) * tread, width, tread, 0, (from + i + 1) * rise, color(from + i), 'wood'));
+  return out;
+}
+
+CATALOG.push(
+  // ---------- Escadas brasileiras ----------
+  {
+    id: 'stair_l_left', name: 'Escada em L (virando à esquerda)', category: 'Escadas', width: 2.6, depth: 2.95, height: 2.95, stair: true,
+    footprint: (h) => CATALOG.find((c) => c.id === 'stair_l')!.footprint!(h),
+    parts: (w, d, h) => mirrorX(CATALOG.find((c) => c.id === 'stair_l')!.parts(w, d, h)),
+  },
+  {
+    id: 'stair_l_winder', name: 'Escada em L com leque (sem patamar)', category: 'Escadas', width: 2.4, depth: 2.6, height: 2.95, stair: true,
+    footprint: (h) => {
+      const { n, tread } = steps(h);
+      const n1 = Math.ceil((n - 3) / 2);
+      return { width: 0.9 + (n - 3 - n1) * tread, depth: 0.9 + n1 * tread };
+    },
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const n1 = Math.ceil((n - 3) / 2);
+      const n2 = n - 3 - n1;
+      const t1 = (d - 0.9) / Math.max(1, n1);
+      const t2 = (w - 0.9) / Math.max(1, n2);
+      const x0 = -w / 2 + 0.45;
+      const parts: Part[] = stepsRun(x0, d / 2, -1, 0.9, t1, n1, 0, rise);
+      // três degraus em leque saindo do canto interno
+      const cx = -w / 2 + 0.9;
+      const cz = -d / 2 + 0.9;
+      [195, 225, 255].forEach((deg, k) => {
+        const a = (deg * Math.PI) / 180;
+        const c = Math.abs(Math.cos(a));
+        const s = Math.abs(Math.sin(a));
+        const L = 0.9 / Math.max(c, s);
+        parts.push(R(B(cx + Math.cos(a) * L * 0.5, cz + Math.sin(a) * L * 0.5, L, Math.min(0.5, L * 0.42), 0, (n1 + k + 1) * rise, stepColor(n1 + k), 'wood'), a));
+      });
+      for (let j = 0; j < n2; j++) parts.push(B(-w / 2 + 0.9 + (j + 0.5) * t2, -d / 2 + 0.45, t2, 0.9, 0, (n1 + 3 + j + 1) * rise, stepColor(j), 'wood'));
+      return parts;
+    },
+  },
+  {
+    id: 'stair_u3', name: 'Escada em U de três lances (2 patamares)', category: 'Escadas', width: 2.6, depth: 2.4, height: 2.95, stair: true,
+    footprint: (h) => {
+      const { n, tread } = steps(h);
+      const n1 = Math.round(n / 3);
+      const n2 = n - 2 * n1;
+      return { width: 1.8 + Math.max(1, n2 - 1) * tread, depth: 0.9 + n1 * tread };
+    },
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const n1 = Math.round(n / 3);
+      const n2 = n - 2 * n1;
+      const t1 = (d - 0.9) / Math.max(1, n1);
+      const t2 = (w - 1.8) / Math.max(1, n2 - 1);
+      const parts: Part[] = [];
+      // lance 1: sobe pela esquerda até o patamar do fundo
+      parts.push(...stepsRun(-w / 2 + 0.45, d / 2, -1, 0.9, t1, n1 - 1, 0, rise));
+      parts.push(B(-w / 2 + 0.45, -d / 2 + 0.45 + (d - 0.9 - (n1 - 1) * t1) / 2, 0.9, 0.9 + (d - 0.9 - (n1 - 1) * t1), 0, n1 * rise, '#bfa98b', 'wood'));
+      // lance 2: atravessa pelo fundo
+      for (let j = 0; j < n2 - 1; j++) parts.push(B(-w / 2 + 0.9 + (j + 0.5) * t2, -d / 2 + 0.45, t2, 0.9, 0, (n1 + j + 1) * rise, stepColor(j), 'wood'));
+      parts.push(B(w / 2 - 0.45, -d / 2 + 0.45, 0.9, 0.9, 0, (n1 + n2) * rise, '#bfa98b', 'wood'));
+      // lance 3: desce para a frente pela direita
+      parts.push(...stepsRun(w / 2 - 0.45, -d / 2 + 0.9, 1, 0.9, t1, n1, n1 + n2, rise));
+      return parts;
+    },
+  },
+  {
+    id: 'stair_imperial', name: 'Escada imperial (1 lance que se divide em 2)', category: 'Escadas', width: 3.2, depth: 3.4, height: 2.95, stair: true,
+    footprint: (h) => {
+      const { n, tread } = steps(h);
+      const n1 = Math.ceil(n / 2);
+      return { width: 3.2, depth: 1.0 + Math.max(n1 - 1, n - n1) * tread };
+    },
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const n1 = Math.ceil(n / 2);
+      const n2 = n - n1;
+      const run = d - 1.0;
+      const t1 = run / Math.max(1, n1 - 1);
+      const t2 = run / Math.max(1, n2);
+      const side = (w - 1.4) / 2;
+      const parts: Part[] = stepsRun(0, d / 2, -1, 1.2, t1, n1 - 1, 0, rise);
+      parts.push(B(0, -d / 2 + 0.5, w, 1.0, 0, n1 * rise, '#bfa98b', 'wood'));
+      for (const s of [-1, 1]) parts.push(...stepsRun(s * (w / 2 - side / 2), -d / 2 + 1.0, 1, side, t2, n2, n1, rise));
+      return parts;
+    },
+  },
+  {
+    id: 'stair_concrete', name: 'Escada de concreto armado (reta)', category: 'Escadas', width: 1.0, depth: 4.34, height: 2.95, stair: true,
+    footprint: (h) => ({ width: 1.0, depth: steps(h).n * steps(h).tread }),
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const tread = d / n;
+      const parts = stepsRun(0, d / 2, -1, w, tread, n, 0, rise, (i) => (i % 2 ? '#b1b3b5' : CONCRETE));
+      parts.push(...rail(w / 2 - 0.03, d, h), ...rail(-w / 2 + 0.03, d, h));
+      return parts;
+    },
+  },
+  {
+    id: 'stair_steel', name: 'Escada metálica (chapa xadrez)', category: 'Escadas', width: 0.9, depth: 4.34, height: 2.95, stair: true,
+    footprint: (h) => ({ width: 0.9, depth: steps(h).n * steps(h).tread }),
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const tread = d / n;
+      const parts: Part[] = [];
+      for (let i = 0; i < n; i++) parts.push(B(0, d / 2 - (i + 0.5) * tread, w - 0.1, tread - 0.01, (i + 1) * rise - 0.02, 0.02, '#6d7378', 'metal'));
+      for (const s of [-1, 1]) {
+        // longarina inclinada (em dente de serra, acompanhando os degraus)
+        for (let i = 0; i < n; i++) parts.push(B(s * (w / 2 - 0.04), d / 2 - (i + 0.5) * tread, 0.06, tread, Math.max(0, (i + 1) * rise - 0.22), Math.min(0.22, (i + 1) * rise), '#3a3f44', 'metal'));
+        parts.push(...rail(s * (w / 2 - 0.04), d, h));
+      }
+      return parts;
+    },
+  },
+  {
+    id: 'entry_steps', name: 'Degraus de entrada (3 degraus)', category: 'Escadas', width: 1.5, depth: 0.9, height: 0.51,
+    parts: (w, d, h) => [0, 1, 2].map((i) => B(0, d / 2 - (i + 0.5) * (d / 3), w, d / 3, 0, ((i + 1) * h) / 3, STONE, 'ceramic')),
+  },
+  {
+    id: 'access_ramp', name: 'Rampa acessível (NBR 9050, 8,33%)', category: 'Escadas', width: 1.2, depth: 6.0, height: 0.5,
+    parts: (w, d, h) => {
+      const parts: Part[] = [];
+      const k = 12;
+      for (let i = 0; i < k; i++) parts.push(B(0, d / 2 - (i + 0.5) * (d / k), w, d / k, 0, Math.max(0.02, ((i + 1) * h) / k), i % 2 ? '#c7c2b8' : '#cfcac0', 'ceramic'));
+      for (const s of [-1, 1]) {
+        parts.push({ shape: 'box', x: s * (w / 2 - 0.03), y: h / 2 + 0.92, z: 0, sx: 0.04, sy: 0.04, sz: d, color: '#5b5f63', material: 'metal' });
+        parts.push({ shape: 'box', x: s * (w / 2 - 0.03), y: h / 2 + 0.7, z: 0, sx: 0.04, sy: 0.04, sz: d, color: '#5b5f63', material: 'metal' });
+      }
+      return parts;
+    },
+  },
+
+  // ---------- Cozinha: balcões e bancadas ----------
+  {
+    id: 'marble_counter', name: 'Balcão de mármore (divisória cozinha/sala)', category: 'Cozinha', width: 2.2, depth: 0.7, height: 1.05,
+    parts: (w, d, h) => marbleCounter(w, d, h),
+  },
+  {
+    id: 'marble_counter_stools', name: 'Balcão de mármore com 3 banquetas', category: 'Cozinha', width: 2.2, depth: 1.3, height: 1.05,
+    parts: (w, d, h) => {
+      const p = marbleCounter(w, 0.7, h).map((x) => ({ ...x, z: x.z - (d - 0.7) / 2 }));
+      for (const x of [-w / 3, 0, w / 3]) {
+        const z = d / 2 - 0.22;
+        p.push(C(x, z, 0.4, 0.4, 0.71, 0.06, '#2b2b2b', 'fabric'), C(x, z, 0.05, 0.05, 0.03, 0.68, STEEL, 'metal'), C(x, z, 0.36, 0.36, 0, 0.03, STEEL, 'metal'));
+      }
+      return p;
+    },
+  },
+  {
+    id: 'marble_peninsula', name: 'Península de mármore com cooktop', category: 'Cozinha', width: 2.4, depth: 0.9, height: 0.92,
+    parts: (w, d, h) => marbleCounter(w, d, h, false, true),
+  },
+  {
+    id: 'marble_island', name: 'Ilha de mármore com cuba e cooktop', category: 'Cozinha', width: 2.6, depth: 1.1, height: 0.92,
+    parts: (w, d, h) => marbleCounter(w, d, h, true, true),
+  },
+  {
+    id: 'sink_cabinet', name: 'Pia de cozinha com gabinete (granito)', category: 'Cozinha', width: 1.8, depth: 0.6, height: 0.92,
+    parts: (w, d, h) => [B(0, -0.02, w, d - 0.04, 0.1, h - 0.13, WHITE, 'wood'), B(0, -0.04, w, d - 0.08, 0, 0.1, '#cfcac2', 'wood'), B(0, 0, w, d, h - 0.03, 0.03, GRANITE, 'ceramic'), B(0, 0.02, 0.55, 0.4, h - 0.02, 0.01, '#9aa3ab', 'metal'), C(0, -d / 2 + 0.06, 0.03, 0.03, h, 0.32, STEEL, 'metal')],
+  },
+  {
+    id: 'kitchen_l', name: 'Cozinha planejada em L (gabinetes + aéreos)', category: 'Cozinha', width: 2.8, depth: 2.2, height: 2.2,
+    parts: (w, d, h) => [
+      B(0, -d / 2 + 0.3, w, 0.6, 0, 0.88, WHITE, 'wood'), B(0, -d / 2 + 0.3, w, 0.62, 0.88, 0.04, GRANITE, 'ceramic'),
+      B(-w / 2 + 0.3, 0.3, 0.6, d - 0.6, 0, 0.88, WHITE, 'wood'), B(-w / 2 + 0.3, 0.3, 0.62, d - 0.6, 0.88, 0.04, GRANITE, 'ceramic'),
+      B(0, -d / 2 + 0.17, w, 0.34, 1.5, h - 1.5, WOOD_LIGHT, 'wood'), B(-w / 2 + 0.17, 0.17, 0.34, d - 0.34, 1.5, h - 1.5, WOOD_LIGHT, 'wood'),
+      B(0.3, -d / 2 + 0.3, 0.55, 0.4, 0.91, 0.01, '#9aa3ab', 'metal'), B(w / 2 - 0.4, -d / 2 + 0.3, 0.6, 0.5, 0.92, 0.01, BLACK, 'glass'),
+    ],
+  },
+  {
+    id: 'cooktop', name: 'Cooktop 5 bocas', category: 'Cozinha', width: 0.75, depth: 0.52, height: 0.02, elevation: 0.92,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, BLACK, 'glass'), ...[[-0.22, -0.12], [0.22, -0.12], [-0.22, 0.12], [0.22, 0.12], [0, 0]].map(([x, z]) => C(x * w * 1.1, z * d * 1.4, 0.14, 0.14, h, 0.005, '#555', 'metal'))],
+  },
+  {
+    id: 'oven_tower', name: 'Torre quente (forno + micro-ondas)', category: 'Cozinha', width: 0.7, depth: 0.6, height: 2.2,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, WHITE, 'wood'), B(0, d / 2 + 0.005, 0.6, 0.01, 0.8, 0.58, BLACK, 'glass'), B(0, d / 2 + 0.005, 0.6, 0.01, 1.45, 0.38, BLACK, 'glass')],
+  },
+  {
+    id: 'pantry', name: 'Armário paneleiro / despensa', category: 'Cozinha', width: 0.8, depth: 0.6, height: 2.2,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, WOOD_LIGHT, 'wood'), B(0, d / 2 + 0.003, 0.006, 0.006, 0.05, h - 0.1, WOOD_DARK)],
+  },
+  {
+    id: 'microwave', name: 'Micro-ondas', category: 'Cozinha', width: 0.5, depth: 0.4, height: 0.3, elevation: 0.92,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#d9dadb', 'metal'), B(-0.06, d / 2 + 0.004, w * 0.62, 0.008, 0.04, h - 0.08, BLACK, 'glass')],
+  },
+  {
+    id: 'water_filter', name: 'Purificador de água', category: 'Cozinha', width: 0.25, depth: 0.3, height: 0.4, elevation: 0.92,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#f2f2f2', 'ceramic'), B(0, d / 2 + 0.003, w * 0.6, 0.006, h * 0.6, h * 0.3, '#6fa9d9', 'glass')],
+  },
+  {
+    id: 'dining_table6', name: 'Mesa de jantar 6 lugares (com cadeiras)', category: 'Cozinha', width: 1.9, depth: 1.6, height: 0.9,
+    parts: (w, d, h) => {
+      const tw = w - 0.1;
+      const td = d - 0.7;
+      const p: Part[] = [B(0, 0, tw, td, 0.72, 0.04, WOOD, 'wood'), ...legs(tw, td, 0.06, 0.06, 0.72, WOOD_DARK)];
+      for (const s of [-1, 1]) for (const x of [-tw / 3, 0, tw / 3]) {
+        const z = s * (td / 2 + 0.2);
+        p.push(B(x, z, 0.44, 0.42, 0.45, 0.05, '#c9b79c', 'fabric'), B(x, z + s * 0.19, 0.44, 0.04, 0.45, h - 0.45, WOOD_DARK, 'wood'));
+      }
+      return p;
+    },
+  },
+  {
+    id: 'dining_table8', name: 'Mesa de jantar 8 lugares', category: 'Cozinha', width: 2.4, depth: 1.0, height: 0.76,
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.05, 0.05, '#8b5e3c', 'wood'), B(-w / 2 + 0.35, 0, 0.12, d - 0.3, 0, h - 0.05, '#5a3d27', 'wood'), B(w / 2 - 0.35, 0, 0.12, d - 0.3, 0, h - 0.05, '#5a3d27', 'wood')],
+  },
+  {
+    id: 'german_corner', name: 'Canto alemão (banco + mesa)', category: 'Cozinha', width: 1.8, depth: 1.6, height: 0.95,
+    parts: (w, d, h) => [
+      B(0, -d / 2 + 0.25, w, 0.5, 0, 0.45, '#b9a184', 'wood'), B(0, -d / 2 + 0.03, w, 0.06, 0.45, h - 0.45, '#b9a184', 'wood'),
+      B(-w / 2 + 0.25, 0.25, 0.5, d - 0.5, 0, 0.45, '#b9a184', 'wood'), B(-w / 2 + 0.03, 0.25, 0.06, d - 0.5, 0.45, h - 0.45, '#b9a184', 'wood'),
+      B(0.25, 0.2, 1.1, 0.8, 0.72, 0.04, WOOD, 'wood'), C(0.25, 0.2, 0.1, 0.1, 0, 0.72, WOOD_DARK, 'wood'),
+    ],
+  },
+
+  // ---------- Área gourmet ----------
+  {
+    id: 'bbq_gourmet', name: 'Churrasqueira gourmet com bancada e pia', category: 'Área gourmet', width: 3.0, depth: 0.7, height: 2.4,
+    parts: (w, d, h) => [
+      B(-w / 2 + 0.5, 0, 1.0, d, 0, 0.9, '#b5653a', 'ceramic'), B(-w / 2 + 0.5, -0.05, 0.85, d * 0.7, 0.94, 0.65, '#2b2b2b', 'metal'), B(-w / 2 + 0.5, -0.05, 0.6, d * 0.5, 1.59, h - 1.59, '#b5653a', 'ceramic'),
+      B(0.5, 0, w - 1.0, d, 0, 0.88, '#4a4d52', 'wood'), B(0.5, 0, w - 1.0, d, 0.88, 0.04, GRANITE, 'ceramic'),
+      B(0.6, 0.02, 0.5, 0.38, 0.91, 0.01, '#9aa3ab', 'metal'), C(0.6, -d / 2 + 0.06, 0.03, 0.03, 0.92, 0.32, STEEL, 'metal'),
+    ],
+  },
+  {
+    id: 'pizza_oven', name: 'Forno de pizza a lenha', category: 'Área gourmet', width: 1.2, depth: 1.2, height: 1.9,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.9, '#b5653a', 'ceramic'), S(0, 0, w * 0.95, d * 0.95, 0.9, 0.7, '#c97b4a', 'ceramic'), B(0, d / 2 - 0.1, 0.45, 0.2, 0.92, 0.3, BLACK, 'matte'), C(0, -0.25, 0.18, 0.18, 1.5, h - 1.5, '#8a4d2b', 'ceramic')],
+  },
+  {
+    id: 'wood_stove', name: 'Fogão a lenha', category: 'Área gourmet', width: 1.2, depth: 0.65, height: 1.8,
+    light: { y: 0.45, color: '#ff9a3c', intensity: 2 },
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.8, '#efe9df', 'ceramic'), B(0, 0, w, d, 0.8, 0.03, BLACK, 'metal'), B(-w / 4, d / 2 + 0.005, 0.35, 0.01, 0.3, 0.3, BLACK, 'metal'), C(w / 2 - 0.15, -d / 2 + 0.15, 0.14, 0.14, 0.83, h - 0.83, '#3a3a3a', 'metal')],
+  },
+  {
+    id: 'gourmet_table', name: 'Mesa rústica com bancos', category: 'Área gourmet', width: 2.2, depth: 1.6, height: 0.78,
+    parts: (w, d, h) => [B(0, 0, w, 0.9, h - 0.06, 0.06, '#7a5233', 'wood'), ...legs(w, 0.9, 0.12, 0.1, h - 0.06, '#5a3d27'), B(0, -d / 2 + 0.15, w, 0.3, 0.42, 0.05, '#7a5233', 'wood'), B(0, d / 2 - 0.15, w, 0.3, 0.42, 0.05, '#7a5233', 'wood'), ...[-1, 1].flatMap((s) => [B(-w / 2 + 0.2, s * (d / 2 - 0.15), 0.08, 0.25, 0, 0.42, '#5a3d27', 'wood'), B(w / 2 - 0.2, s * (d / 2 - 0.15), 0.08, 0.25, 0, 0.42, '#5a3d27', 'wood')])],
+  },
+  {
+    id: 'beer_fridge', name: 'Cervejeira', category: 'Área gourmet', width: 0.6, depth: 0.65, height: 1.5,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#2b2d30', 'metal'), B(0, d / 2 + 0.004, w - 0.08, 0.008, 0.1, h - 0.2, '#3b5a6e', 'glass')],
+  },
+  {
+    id: 'hammock', name: 'Rede de descanso', category: 'Área gourmet', width: 0.9, depth: 3.0, height: 1.6,
+    parts: (w, d, h) => [S(0, 0, w * 0.9, d * 0.75, 0.45, 0.35, '#d9534f', 'fabric'), C(0, -d / 2, 0.08, 0.08, 0, h, '#5a3d27', 'wood'), C(0, d / 2, 0.08, 0.08, 0, h, '#5a3d27', 'wood')],
+  },
+  {
+    id: 'jacuzzi', name: 'Spa / hidromassagem', category: 'Área gourmet', width: 2.1, depth: 2.1, height: 0.9,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#8b6b4a', 'wood'), B(0, 0, w - 0.25, d - 0.25, h - 0.06, 0.04, '#4fb3d9', 'glass')],
+  },
+  {
+    id: 'pool_small', name: 'Piscina pequena (prainha)', category: 'Área gourmet', width: 4, depth: 2.5, height: 0.2,
+    parts: (w, d, h) => [B(0, 0, w + 0.4, d + 0.4, 0, h * 0.5, '#e3dccb', 'ceramic'), B(0, 0.25, w, d - 0.5, h * 0.5, 0.02, '#4fb3d9', 'glass'), B(0, -d / 2 + 0.25, w, 0.5, h * 0.5, 0.03, '#8fd3ec', 'glass')],
+  },
+  {
+    id: 'outdoor_shower', name: 'Ducha externa', category: 'Área gourmet', width: 0.6, depth: 0.6, height: 2.2,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.03, STONE, 'ceramic'), C(0, -d / 2 + 0.05, 0.05, 0.05, 0, h, STEEL, 'metal'), C(0, -d / 2 + 0.25, 0.25, 0.25, h - 0.05, 0.03, STEEL, 'metal')],
+  },
+
+  // ---------- Jardim ----------
+  {
+    id: 'palm', name: 'Palmeira', category: 'Jardim', width: 3.5, depth: 3.5, height: 7,
+    parts: (w, d, h) => [C(0, 0, 0.3, 0.3, 0, h * 0.85, '#8a7a66', 'wood'), ...[0, 1, 2, 3, 4, 5, 6, 7].map((k) => R(B(Math.cos((k * Math.PI) / 4) * w * 0.25, Math.sin((k * Math.PI) / 4) * d * 0.25, w * 0.5, 0.35, h * 0.83 - (k % 2) * 0.15, 0.06, k % 2 ? GREEN : GREEN_L, 'matte'), (k * Math.PI) / 4))],
+  },
+  {
+    id: 'ipe', name: 'Ipê-amarelo', category: 'Jardim', width: 4, depth: 4, height: 6,
+    parts: (w, d, h) => [C(0, 0, 0.3, 0.3, 0, h * 0.5, '#5a4636', 'wood'), ...crown(0, 0, w, d, h * 0.42, h * 0.58, '#e6c229')],
+  },
+  {
+    id: 'ipe_roxo', name: 'Ipê-roxo', category: 'Jardim', width: 4, depth: 4, height: 6,
+    parts: (w, d, h) => [C(0, 0, 0.3, 0.3, 0, h * 0.5, '#5a4636', 'wood'), ...crown(0, 0, w, d, h * 0.42, h * 0.58, '#b05fa8')],
+  },
+  {
+    id: 'fruit_tree', name: 'Árvore frutífera (laranjeira)', category: 'Jardim', width: 2.5, depth: 2.5, height: 3.5,
+    parts: (w, d, h) => [C(0, 0, 0.18, 0.18, 0, h * 0.4, '#5a4636', 'wood'), ...crown(0, 0, w, d, h * 0.3, h * 0.7, GREEN_D), ...[[0.5, 0.4], [-0.6, 0.2], [0.1, -0.7], [-0.3, -0.4], [0.7, -0.2]].map(([x, z]) => S((x * w) / 2, (z * d) / 2, 0.12, 0.12, h * 0.55, 0.12, '#f08a24', 'matte'))],
+  },
+  {
+    id: 'cypress', name: 'Cipreste / tuia', category: 'Jardim', width: 1.0, depth: 1.0, height: 3.5,
+    parts: (w, d, h) => [C(0, 0, 0.12, 0.12, 0, 0.4, '#5a4636', 'wood'), ...[0, 1, 2, 3].map((k) => C(0, 0, w * (1 - k * 0.2), d * (1 - k * 0.2), 0.3 + k * (h - 0.3) * 0.24, (h - 0.3) * 0.3, shade(GREEN_D, k * 6), 'matte'))],
+  },
+  {
+    id: 'bamboo', name: 'Bambu (touceira)', category: 'Jardim', width: 1.2, depth: 1.2, height: 4,
+    parts: (w, d, h) => [...[[0, 0], [0.3, 0.2], [-0.3, 0.15], [0.15, -0.3], [-0.2, -0.25], [0.35, -0.1]].map(([x, z], i) => C((x * w) / 1.2, (z * d) / 1.2, 0.06, 0.06, 0, h * (0.8 + (i % 3) * 0.1), '#9fb64a', 'wood')), ...crown(0, 0, w, d, h * 0.6, h * 0.4, GREEN_L)],
+  },
+  {
+    id: 'banana_tree', name: 'Bananeira / helicônia', category: 'Jardim', width: 2.0, depth: 2.0, height: 3.0,
+    parts: (w, d, h) => [C(0, 0, 0.22, 0.22, 0, h * 0.6, '#7d8f4a', 'wood'), ...[0, 1, 2, 3, 4].map((k) => R(B(Math.cos((k * 2 * Math.PI) / 5) * w * 0.25, Math.sin((k * 2 * Math.PI) / 5) * d * 0.25, w * 0.5, 0.3, h * 0.6 + (k % 2) * 0.2, 0.05, k % 2 ? GREEN : GREEN_L, 'matte'), (k * 2 * Math.PI) / 5))],
+  },
+  {
+    id: 'hedge', name: 'Cerca viva (podada)', category: 'Jardim', width: 2.0, depth: 0.5, height: 1.2,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, GREEN_D, 'matte'), B(0, 0, w - 0.06, d + 0.02, h * 0.3, h * 0.6, shade(GREEN_D, 10), 'matte')],
+  },
+  {
+    id: 'flower_bed', name: 'Canteiro de flores', category: 'Jardim', width: 2.0, depth: 0.8, height: 0.45,
+    parts: (w, d, h) => {
+      const p: Part[] = [B(0, 0, w, d, 0, 0.2, '#c8bfb0', 'ceramic'), B(0, 0, w - 0.08, d - 0.08, 0.2, 0.01, SOIL, 'matte')];
+      const cols = ['#e05570', '#f2c14e', '#ffffff', '#b05fa8', '#ef8a3a'];
+      const nx = Math.max(2, Math.round(w / 0.3));
+      for (let i = 0; i < nx; i++) for (const z of [-0.2, 0.2]) {
+        const x = -w / 2 + 0.15 + ((i + 0.5) * (w - 0.3)) / nx;
+        p.push(S(x, z * d, 0.22, 0.22, 0.2, h - 0.2, GREEN, 'matte'), S(x, z * d, 0.1, 0.1, h - 0.06, 0.08, cols[(i + (z > 0 ? 2 : 0)) % cols.length], 'matte'));
+      }
+      return p;
+    },
+  },
+  {
+    id: 'vegetable_bed', name: 'Horta / canteiro elevado', category: 'Jardim', width: 2.4, depth: 1.0, height: 0.6,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.4, '#8b6b4a', 'wood'), B(0, 0, w - 0.08, d - 0.08, 0.4, 0.01, SOIL, 'matte'), ...[-0.35, -0.1, 0.15, 0.4].flatMap((x) => [-0.2, 0.2].map((z) => S(x * w, z * d, 0.2, 0.2, 0.4, h - 0.4, GREEN_L, 'matte')))],
+  },
+  {
+    id: 'lawn', name: 'Gramado (placa de grama)', category: 'Jardim', width: 4, depth: 4, height: 0.03,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#7fb24a', 'matte')],
+  },
+  {
+    id: 'gravel', name: 'Área de pedrisco / brita', category: 'Jardim', width: 2, depth: 2, height: 0.04,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#cfc8bb', 'matte')],
+  },
+  {
+    id: 'stepping_stones', name: 'Caminho de pisantes', category: 'Jardim', width: 0.6, depth: 3.0, height: 0.04,
+    parts: (w, d, h) => {
+      const n = Math.max(2, Math.round(d / 0.6));
+      return Array.from({ length: n }, (_, i) => B((i % 2 ? 0.06 : -0.06) * w, -d / 2 + ((i + 0.5) * d) / n, w * 0.75, (d / n) * 0.7, 0, h, STONE, 'ceramic'));
+    },
+  },
+  {
+    id: 'garden_path', name: 'Caminho de pedra (calçada)', category: 'Jardim', width: 1.2, depth: 4.0, height: 0.03,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#d6cfc2', 'ceramic')],
+  },
+  {
+    id: 'deck', name: 'Deck de madeira', category: 'Jardim', width: 3, depth: 3, height: 0.12,
+    parts: (w, d, h) => {
+      const n = Math.max(3, Math.round(w / 0.15));
+      return Array.from({ length: n }, (_, i) => B(-w / 2 + ((i + 0.5) * w) / n, 0, w / n - 0.01, d, 0, h, i % 2 ? '#9b6b43' : '#8b5e3c', 'wood'));
+    },
+  },
+  {
+    id: 'pot_large', name: 'Vaso grande com planta', category: 'Jardim', width: 0.6, depth: 0.6, height: 1.4,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, 0.55, '#7d7f82', 'ceramic'), ...crown(0, 0, w * 1.2, d * 1.2, 0.5, h - 0.5, GREEN)],
+  },
+  {
+    id: 'pot_palm', name: 'Vaso com palmeira-ráfis', category: 'Jardim', width: 0.5, depth: 0.5, height: 1.7,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, 0.45, '#efe9df', 'ceramic'), ...[0, 1, 2, 3, 4].map((k) => C(Math.cos(k * 1.25) * 0.08, Math.sin(k * 1.25) * 0.08, 0.03, 0.03, 0.45, h - 0.6 - k * 0.08, '#6b5a3a', 'wood')), ...crown(0, 0, w * 1.4, d * 1.4, h - 0.6, 0.6, GREEN_L)],
+  },
+  {
+    id: 'cactus', name: 'Cactos e suculentas', category: 'Jardim', width: 0.8, depth: 0.5, height: 0.9,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.25, '#c97b4a', 'ceramic'), C(-w / 4, 0, 0.14, 0.14, 0.25, h - 0.25, '#5f8f4e', 'matte'), C(-w / 4 + 0.1, 0, 0.08, 0.08, 0.45, 0.25, '#5f8f4e', 'matte'), S(w / 6, 0, 0.18, 0.18, 0.25, 0.12, '#8fb8a0', 'matte'), S(w / 3, 0.05, 0.14, 0.14, 0.25, 0.1, '#a7c49a', 'matte')],
+  },
+  {
+    id: 'vertical_garden', name: 'Jardim vertical (parede verde)', category: 'Jardim', width: 2.0, depth: 0.15, height: 2.2,
+    parts: (w, d, h) => {
+      const p: Part[] = [B(0, -d / 4, w, d / 2, 0, h, '#5a4636', 'wood')];
+      const nx = Math.max(2, Math.round(w / 0.3));
+      const ny = Math.max(2, Math.round(h / 0.3));
+      for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) p.push(S(-w / 2 + ((i + 0.5) * w) / nx, d / 4, w / nx + 0.06, d, ((j + 0.1) * h) / ny, h / ny + 0.05, [GREEN, GREEN_L, GREEN_D][(i + j) % 3], 'matte'));
+      return p;
+    },
+  },
+  {
+    id: 'fountain', name: 'Fonte de água', category: 'Jardim', width: 1.4, depth: 1.4, height: 1.3,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, 0.45, STONE, 'ceramic'), C(0, 0, w - 0.15, d - 0.15, 0.42, 0.02, '#4fb3d9', 'glass'), C(0, 0, 0.18, 0.18, 0.45, h - 0.6, STONE, 'ceramic'), C(0, 0, 0.6, 0.6, h - 0.2, 0.12, STONE, 'ceramic')],
+  },
+  {
+    id: 'water_mirror', name: 'Espelho d\'água / lago', category: 'Jardim', width: 3, depth: 1.5, height: 0.15,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#7d7f82', 'ceramic'), B(0, 0, w - 0.15, d - 0.15, h - 0.03, 0.02, '#3d8fbf', 'glass'), S(w / 4, 0, 0.3, 0.3, h - 0.02, 0.03, GREEN_L, 'matte')],
+  },
+  {
+    id: 'pergola', name: 'Pergolado de madeira', category: 'Jardim', width: 3.5, depth: 3.0, height: 2.7,
+    parts: (w, d, h) => {
+      const p: Part[] = [...legs(w, d, 0.1, 0.14, h - 0.2, '#7a5233')];
+      for (const s of [-1, 1]) p.push(B(0, s * (d / 2 - 0.1), w, 0.08, h - 0.2, 0.2, '#7a5233', 'wood'));
+      const n = Math.max(4, Math.round(w / 0.35));
+      for (let i = 0; i <= n; i++) p.push(B(-w / 2 + (i * w) / n, 0, 0.05, d + 0.3, h - 0.12, 0.12, '#8b5e3c', 'wood'));
+      return p;
+    },
+  },
+  {
+    id: 'gazebo', name: 'Quiosque / gazebo', category: 'Jardim', width: 3.5, depth: 3.5, height: 3.2,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, 0.1, STONE, 'ceramic'), ...legs(w * 0.85, d * 0.85, 0.05, 0.12, h - 0.9, '#7a5233'), B(0, 0, w + 0.4, d + 0.4, h - 0.9, 0.1, '#7a5233', 'wood'), C(0, 0, (w + 0.4) * 1.1, (d + 0.4) * 1.1, h - 0.8, 0.5, '#a0522d', 'ceramic'), C(0, 0, w * 0.4, d * 0.4, h - 0.3, 0.3, '#8b4513', 'ceramic')],
+  },
+  {
+    id: 'garden_bench', name: 'Banco de jardim', category: 'Jardim', width: 1.5, depth: 0.6, height: 0.85,
+    parts: (w, d, h) => [B(0, 0.05, w, d - 0.15, 0.42, 0.05, '#8b5e3c', 'wood'), B(0, -d / 2 + 0.04, w, 0.05, 0.5, h - 0.5, '#8b5e3c', 'wood'), ...legs(w, d - 0.1, 0.08, 0.06, 0.42, '#2f3236', 'metal')],
+  },
+  {
+    id: 'swing', name: 'Balanço', category: 'Jardim', width: 2.0, depth: 1.4, height: 2.2,
+    parts: (w, d, h) => [B(0, 0, w, 0.1, h - 0.1, 0.1, '#7a5233', 'wood'), ...[-1, 1].flatMap((s) => [R(B(s * (w / 2 - 0.05), -d / 4, 0.08, 0.08, 0, h, '#7a5233', 'wood'), 0), R(B(s * (w / 2 - 0.05), d / 4, 0.08, 0.08, 0, h, '#7a5233', 'wood'), 0)]), B(0, 0, 0.6, 0.25, 0.45, 0.04, '#d9534f', 'wood'), B(-0.28, 0, 0.02, 0.02, 0.49, h - 0.59, '#9aa0a6', 'metal'), B(0.28, 0, 0.02, 0.02, 0.49, h - 0.59, '#9aa0a6', 'metal')],
+  },
+  {
+    id: 'playground', name: 'Playground infantil', category: 'Jardim', width: 3.0, depth: 2.5, height: 2.6,
+    parts: (w, _d, h) => [...legs(1.4, 1.4, 0.05, 0.1, 1.2, '#7a5233').map((p) => ({ ...p, x: p.x - w / 2 + 0.7 })), B(-w / 2 + 0.7, 0, 1.4, 1.4, 1.2, 0.06, '#8b5e3c', 'wood'), B(-w / 2 + 0.7, 0, 1.5, 1.5, h - 0.15, 0.15, '#d9534f', 'ceramic'), ...legs(1.4, 1.4, 0.05, 0.08, h - 0.15, '#7a5233').map((p) => ({ ...p, x: p.x - w / 2 + 0.7, y: (h - 0.15) / 2 })), B(0.6, 0, w - 1.4, 0.5, 0, 0.6, '#f2c14e', 'ceramic')],
+  },
+  {
+    id: 'garden_light', name: 'Balizador de jardim', category: 'Jardim', width: 0.15, depth: 0.15, height: 0.6,
+    light: { y: 0.55, color: '#ffe2a8', intensity: 1.5 },
+    parts: (w, d, h) => [C(0, 0, w, d, 0, h - 0.1, '#2f3236', 'metal'), C(0, 0, w, d, h - 0.1, 0.1, '#fff4d6', 'glass')],
+  },
+  {
+    id: 'lamp_post', name: 'Poste de jardim', category: 'Jardim', width: 0.3, depth: 0.3, height: 2.6,
+    light: { y: 2.4, color: '#ffe2a8', intensity: 3 },
+    parts: (w, d, h) => [C(0, 0, 0.08, 0.08, 0, h - 0.3, '#2f3236', 'metal'), S(0, 0, w, d, h - 0.35, 0.35, '#fff4d6', 'glass')],
+  },
+  {
+    id: 'wood_fence', name: 'Cerca de madeira', category: 'Jardim', width: 2.0, depth: 0.08, height: 1.2,
+    parts: (w, d, h) => {
+      const n = Math.max(3, Math.round(w / 0.12));
+      const p: Part[] = Array.from({ length: n }, (_, i) => B(-w / 2 + ((i + 0.5) * w) / n, 0, w / n - 0.03, d * 0.5, 0, h, '#9b7653', 'wood'));
+      p.push(B(0, -d / 2 + 0.01, w, 0.02, h * 0.2, 0.08, '#7a5233', 'wood'), B(0, -d / 2 + 0.01, w, 0.02, h * 0.75, 0.08, '#7a5233', 'wood'));
+      return p;
+    },
+  },
+  {
+    id: 'water_tank_garden', name: 'Cisterna / reservatório de chuva', category: 'Jardim', width: 1.2, depth: 1.2, height: 1.5,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, h, '#3f6f9a', 'matte'), C(0, 0, w * 0.4, d * 0.4, h, 0.06, '#2f3236', 'matte')],
+  },
+
+  // ---------- Garagem ----------
+  {
+    id: 'parking_space', name: 'Vaga de garagem demarcada (2,50 × 5,00)', category: 'Garagem', width: 2.5, depth: 5.0, height: 0.01,
+    parts: (w, d, h) => [B(-w / 2 + 0.05, 0, 0.1, d, 0, h, '#f2c14e', 'matte'), B(w / 2 - 0.05, 0, 0.1, d, 0, h, '#f2c14e', 'matte'), B(0, -d / 2 + 0.05, w, 0.1, 0, h, '#f2c14e', 'matte'), B(0, -d / 2 + 0.6, w * 0.6, 0.12, 0, h + 0.1, '#5b5f63', 'ceramic')],
+  },
+  {
+    id: 'car_suv', name: 'Carro SUV / caminhonete', category: 'Garagem', width: 1.9, depth: 4.7, height: 1.75,
+    parts: (w, d, h) => car(w, d, h, '#7a8288', true),
+  },
+  {
+    id: 'car_hatch', name: 'Carro compacto (hatch)', category: 'Garagem', width: 1.7, depth: 3.9, height: 1.5,
+    parts: (w, d, h) => car(w, d, h, '#b53a3a'),
+  },
+  {
+    id: 'motorcycle', name: 'Moto', category: 'Garagem', width: 0.8, depth: 2.1, height: 1.15,
+    parts: (w, d, h) => [
+      S(0, d / 2 - 0.32, 0.12, 0.6, 0, 0.6, '#1b1b1b', 'matte'),
+      S(0, -d / 2 + 0.32, 0.14, 0.6, 0, 0.6, '#1b1b1b', 'matte'),
+      B(0, 0, 0.3, d * 0.55, 0.45, 0.35, '#c0392b', 'metal'), B(0, -0.2, 0.28, 0.6, 0.8, 0.08, '#222', 'fabric'), B(0, d / 2 - 0.45, w, 0.04, h - 0.1, 0.04, '#5b5f63', 'metal'),
+    ],
+  },
+  {
+    id: 'bicycle', name: 'Bicicleta', category: 'Garagem', width: 0.6, depth: 1.75, height: 1.05,
+    parts: (w, d, h) => [
+      S(0, d / 2 - 0.35, 0.04, 0.7, 0, 0.7, '#1b1b1b', 'matte'),
+      S(0, -d / 2 + 0.35, 0.04, 0.7, 0, 0.7, '#1b1b1b', 'matte'),
+      B(0, 0, 0.04, d - 0.7, 0.55, 0.04, '#2f7cf6', 'metal'), B(0, -0.15, 0.1, 0.25, 0.9, 0.05, '#222', 'fabric'), B(0, d / 2 - 0.4, w, 0.03, h - 0.03, 0.03, '#5b5f63', 'metal'),
+    ],
+  },
+  {
+    id: 'bike_rack', name: 'Suporte de bicicletas (parede)', category: 'Garagem', width: 1.5, depth: 0.5, height: 1.8,
+    parts: (w, d, h) => [B(0, -d / 2 + 0.02, w, 0.04, 0.6, h - 0.6, '#5b5f63', 'metal'), ...[-0.3, 0, 0.3].map((x) => B(x * w, 0, 0.04, d, h - 0.3, 0.04, '#5b5f63', 'metal'))],
+  },
+  {
+    id: 'workbench', name: 'Bancada de ferramentas', category: 'Garagem', width: 1.8, depth: 0.7, height: 1.9,
+    parts: (w, d, h) => [B(0, 0, w, d, 0.85, 0.05, '#a0784f', 'wood'), ...legs(w, d, 0.05, 0.06, 0.85, '#3a3f44', 'metal'), B(0, 0, w - 0.1, d - 0.1, 0.15, 0.03, '#a0784f', 'wood'), B(0, -d / 2 + 0.02, w, 0.03, 0.9, h - 0.9, '#c9ced3', 'metal'), ...[-0.5, -0.2, 0.15, 0.45].map((x, i) => B(x * w, -d / 2 + 0.05, 0.04, 0.03, 1.3 + (i % 2) * 0.2, 0.25, ['#c0392b', '#2f7cf6', '#f2c14e', '#27ae60'][i], 'metal'))],
+  },
+  {
+    id: 'steel_shelf', name: 'Estante de aço (5 prateleiras)', category: 'Garagem', width: 0.9, depth: 0.4, height: 2.0,
+    parts: (w, d, h) => [...legs(w, d, 0.02, 0.03, h, '#8a9097', 'metal'), ...[0, 1, 2, 3, 4].map((i) => B(0, 0, w, d, 0.1 + (i * (h - 0.15)) / 4, 0.02, '#a3a9af', 'metal')), B(-0.2, 0, 0.35, 0.3, 0.12, 0.25, '#b5653a', 'matte'), B(0.2, 0, 0.3, 0.3, 0.12 + (h - 0.15) / 4, 0.2, '#2f7cf6', 'matte')],
+  },
+  {
+    id: 'garage_cabinet', name: 'Armário de garagem', category: 'Garagem', width: 1.2, depth: 0.5, height: 2.0,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#4a4d52', 'metal'), B(0, d / 2 + 0.003, 0.006, 0.006, 0.05, h - 0.1, '#222')],
+  },
+  {
+    id: 'tool_panel', name: 'Painel de ferramentas (parede)', category: 'Garagem', width: 1.2, depth: 0.05, height: 0.9, elevation: 1.1,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#d7c7a8', 'wood'), ...[-0.4, -0.15, 0.1, 0.35].map((x, i) => B(x * w, d / 2 + 0.01, 0.05, 0.02, 0.2, 0.4, ['#c0392b', '#5b5f63', '#f2c14e', '#2f7cf6'][i], 'metal'))],
+  },
+  {
+    id: 'ev_charger', name: 'Carregador de carro elétrico', category: 'Garagem', width: 0.3, depth: 0.15, height: 0.4, elevation: 1.1,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#f4f5f6', 'ceramic'), B(0, d / 2 + 0.003, w * 0.5, 0.006, h * 0.6, 0.05, '#27ae60', 'glass')],
+  },
+  {
+    id: 'trash_bins', name: 'Lixeiras de coleta seletiva', category: 'Garagem', width: 1.6, depth: 0.55, height: 1.0,
+    parts: (w, _d, h) => ['#2f7cf6', '#c0392b', '#f2c14e', '#27ae60'].map((c, i) => B(-w / 2 + ((i + 0.5) * w) / 4, 0, w / 4 - 0.04, 0.5, 0, h, c, 'matte')),
+  },
+  {
+    id: 'car_lift', name: 'Elevador automotivo', category: 'Garagem', width: 3.2, depth: 1.2, height: 2.8,
+    parts: (w, d, h) => [B(-w / 2 + 0.15, 0, 0.3, 0.5, 0, h, '#c0392b', 'metal'), B(w / 2 - 0.15, 0, 0.3, 0.5, 0, h, '#c0392b', 'metal'), B(0, 0, w, 0.3, h - 0.15, 0.15, '#c0392b', 'metal'), B(0, 0, w - 0.6, d, 0, 0.06, '#5b5f63', 'metal')],
+  },
+
+  // ---------- Vidros e divisórias ----------
+  {
+    id: 'glass_partition', name: 'Divisória de vidro temperado', category: 'Vidros e divisórias', width: 1.5, depth: 0.05, height: 2.6,
+    parts: (w, d, h) => [B(0, 0, w, 0.01, 0.02, h - 0.04, GLASS, 'glass'), B(0, 0, w, d, 0, 0.03, '#2f3236', 'metal'), B(0, 0, w, d, h - 0.03, 0.03, '#2f3236', 'metal')],
+  },
+  {
+    id: 'glass_wall_framed', name: 'Parede de vidro com caixilhos (estilo industrial)', category: 'Vidros e divisórias', width: 3.0, depth: 0.06, height: 2.6,
+    parts: (w, d, h) => {
+      const p: Part[] = [B(0, 0, w, 0.01, 0, h, GLASS, 'glass')];
+      const n = Math.max(2, Math.round(w / 0.75));
+      for (let i = 0; i <= n; i++) p.push(B(-w / 2 + (i * w) / n, 0, 0.04, d, 0, h, BLACK, 'metal'));
+      for (const y of [0, h * 0.35, h * 0.7, h - 0.04]) p.push(B(0, 0, w, d, y, 0.04, BLACK, 'metal'));
+      return p;
+    },
+  },
+  {
+    id: 'shower_glass', name: 'Box de vidro (blindex) em L', category: 'Vidros e divisórias', width: 1.2, depth: 0.9, height: 1.9,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.02, '#e6e1d8', 'ceramic'), B(0, d / 2 - 0.01, w, 0.01, 0.02, h, GLASS, 'glass'), B(w / 2 - 0.01, 0, 0.01, d, 0.02, h, GLASS, 'glass'), B(0, d / 2 - 0.01, w, 0.03, h, 0.03, STEEL, 'metal'), B(w / 2 - 0.01, 0, 0.03, d, h, 0.03, STEEL, 'metal')],
+  },
+  {
+    id: 'shower_glass_straight', name: 'Box de vidro reto (frontal)', category: 'Vidros e divisórias', width: 1.4, depth: 0.05, height: 1.9,
+    parts: (w, d, h) => [B(-w / 4, -0.01, w / 2, 0.01, 0.02, h, GLASS, 'glass'), B(w / 4, 0.01, w / 2, 0.01, 0.02, h, GLASS, 'glass'), B(0, 0, w, d, h, 0.03, STEEL, 'metal')],
+  },
+  {
+    id: 'glass_railing', name: 'Guarda-corpo de vidro (1,10 m)', category: 'Vidros e divisórias', width: 2.0, depth: 0.06, height: 1.1,
+    parts: (w, d, h) => [B(0, 0, w, 0.012, 0.05, h - 0.1, GLASS, 'glass'), B(0, 0, w, d, h - 0.05, 0.05, STEEL, 'metal'), B(0, 0, w, d, 0, 0.05, STEEL, 'metal')],
+  },
+  {
+    id: 'steel_railing', name: 'Guarda-corpo metálico', category: 'Vidros e divisórias', width: 2.0, depth: 0.05, height: 1.1,
+    parts: (w, d, h) => {
+      const n = Math.max(3, Math.round(w / 0.11));
+      const p: Part[] = [B(0, 0, w, d, h - 0.04, 0.04, '#2f3236', 'metal'), B(0, 0, w, d, 0.05, 0.03, '#2f3236', 'metal')];
+      for (let i = 0; i <= n; i++) p.push(B(-w / 2 + (i * w) / n, 0, 0.015, 0.015, 0.05, h - 0.09, '#2f3236', 'metal'));
+      return p;
+    },
+  },
+  {
+    id: 'cobogo', name: 'Parede de cobogó', category: 'Vidros e divisórias', width: 2.0, depth: 0.1, height: 2.6,
+    parts: (w, d, h) => {
+      const p: Part[] = [];
+      const nx = Math.max(2, Math.round(w / 0.25));
+      const ny = Math.max(2, Math.round(h / 0.25));
+      for (let i = 0; i <= nx; i++) p.push(B(-w / 2 + (i * w) / nx, 0, 0.03, d, 0, h, '#ece7df', 'ceramic'));
+      for (let j = 0; j <= ny; j++) p.push(B(0, 0, w, d, Math.min(h - 0.03, (j * h) / ny), 0.03, '#ece7df', 'ceramic'));
+      for (let i = 0; i < nx; i++) for (let j = 0; j < ny; j++) p.push(C(-w / 2 + ((i + 0.5) * w) / nx, 0, 0.08, d * 0.8, ((j + 0.5) * h) / ny - 0.04, 0.08, '#e2dbcf', 'ceramic'));
+      return p;
+    },
+  },
+  {
+    id: 'slatted_panel', name: 'Painel ripado de madeira (divisória)', category: 'Vidros e divisórias', width: 1.8, depth: 0.05, height: 2.6,
+    parts: (w, d, h) => {
+      const n = Math.max(3, Math.round(w / 0.08));
+      return Array.from({ length: n }, (_, i) => B(-w / 2 + ((i + 0.5) * w) / n, 0, (w / n) * 0.55, d, 0, h, '#8b5e3c', 'wood'));
+    },
+  },
+  {
+    id: 'glass_shelf_wall', name: 'Nicho / estante com vidro', category: 'Vidros e divisórias', width: 1.2, depth: 0.35, height: 2.2,
+    parts: (w, d, h) => [B(-w / 2 + 0.015, 0, 0.03, d, 0, h, WOOD_DARK, 'wood'), B(w / 2 - 0.015, 0, 0.03, d, 0, h, WOOD_DARK, 'wood'), ...[0, 1, 2, 3, 4].map((i) => B(0, 0, w - 0.06, d, (i * (h - 0.02)) / 4, 0.02, GLASS, 'glass'))],
+  },
+
+  // ---------- Sala ----------
+  {
+    id: 'sofa_retractable', name: 'Sofá retrátil e reclinável 4 lugares', category: 'Sala', width: 2.6, depth: 1.05, height: 0.95,
+    parts: (w, d, h) => sofa(w, d, h, 4, '#5f6b77'),
+  },
+  {
+    id: 'sofa_chaise', name: 'Sofá com chaise', category: 'Sala', width: 2.4, depth: 1.6, height: 0.85,
+    parts: (w, d, h) => [...sofa(w, 0.9, h, 3, '#a39282').map((p) => ({ ...p, z: p.z - (d - 0.9) / 2 })), B(w / 2 - 0.4, 0.45, 0.8, d - 0.9, 0.1, 0.42, '#a39282', 'fabric')],
+  },
+  {
+    id: 'tv_panel', name: 'Painel de TV com rack', category: 'Sala', width: 2.2, depth: 0.45, height: 2.2,
+    parts: (w, d, h) => [B(0, -d / 2 + 0.02, w, 0.04, 0, h, '#8b5e3c', 'wood'), B(0, 0, w * 0.9, d - 0.05, 0.25, 0.45, '#3b3f45', 'wood'), B(0, -d / 2 + 0.06, 1.25, 0.04, 1.0, 0.72, BLACK, 'glass')],
+  },
+  {
+    id: 'aparador', name: 'Aparador', category: 'Sala', width: 1.4, depth: 0.4, height: 0.8,
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.04, 0.04, '#8b5e3c', 'wood'), ...legs(w, d, 0.04, 0.04, h - 0.04, BLACK, 'metal')],
+  },
+  {
+    id: 'bean_bag', name: 'Puff pera', category: 'Sala', width: 0.8, depth: 0.8, height: 0.9,
+    parts: (w, d, h) => [S(0, 0, w, d, 0, h * 0.65, '#d98c3a', 'fabric'), S(0, -0.12, w * 0.7, d * 0.5, h * 0.35, h * 0.65, '#d98c3a', 'fabric')],
+  },
+  {
+    id: 'pool_table', name: 'Mesa de sinuca', category: 'Sala', width: 1.4, depth: 2.5, height: 0.8,
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.15, 0.15, '#5a3d27', 'wood'), B(0, 0, w - 0.2, d - 0.2, h, 0.01, '#2e7d4f', 'fabric'), ...legs(w, d, 0.15, 0.14, h - 0.15, '#5a3d27')],
+  },
+  {
+    id: 'aquarium', name: 'Aquário', category: 'Sala', width: 1.2, depth: 0.45, height: 1.4,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.8, BLACK, 'wood'), B(0, 0, w, d, 0.8, h - 0.85, '#7cc6e6', 'glass'), B(0, 0, w, d, h - 0.05, 0.05, BLACK, 'wood')],
+  },
+  {
+    id: 'bar_cart', name: 'Carrinho bar', category: 'Sala', width: 0.7, depth: 0.45, height: 0.85,
+    parts: (w, d, h) => [...legs(w, d, 0.02, 0.025, h, '#b8860b', 'metal'), B(0, 0, w, d, 0.15, 0.02, GLASS, 'glass'), B(0, 0, w, d, h - 0.02, 0.02, GLASS, 'glass')],
+  },
+
+  // ---------- Quarto ----------
+  {
+    id: 'wardrobe_sliding', name: 'Guarda-roupa 3 portas de correr', category: 'Quarto', width: 2.4, depth: 0.6, height: 2.3,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#e9e4dc', 'wood'), ...[-1, 0, 1].map((i) => B((i * w) / 3, d / 2 + 0.01 + (i === 0 ? 0.02 : 0), w / 3, 0.02, 0.03, h - 0.06, i === 0 ? '#cfe3ee' : '#ddd5c8', i === 0 ? 'glass' : 'wood'))],
+  },
+  {
+    id: 'trundle_bed', name: 'Bicama', category: 'Quarto', width: 0.95, depth: 2.0, height: 0.75,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.42, '#e9e4dc', 'wood'), B(0, 0.02, w - 0.04, d - 0.06, 0.42, 0.15, '#f4f1ea', 'fabric'), B(0, -d / 2 + 0.03, w, 0.06, 0, h, '#e9e4dc', 'wood'), B(0, -d / 2 + 0.3, w - 0.2, 0.3, 0.57, 0.1, '#ffffff', 'fabric')],
+  },
+  {
+    id: 'changing_dresser', name: 'Cômoda com trocador', category: 'Quarto', width: 1.0, depth: 0.55, height: 1.0,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h - 0.1, WHITE, 'wood'), B(0, 0, w, d, h - 0.1, 0.1, '#bfe0f2', 'fabric')],
+  },
+  {
+    id: 'headboard', name: 'Cabeceira estofada (painel)', category: 'Quarto', width: 2.0, depth: 0.1, height: 1.3,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#b9a99a', 'fabric'), ...[-1, 0, 1].map((i) => B((i * w) / 3, d / 2 + 0.002, 0.004, 0.004, 0.1, h - 0.2, '#a39282'))],
+  },
+  {
+    id: 'kids_desk', name: 'Escrivaninha infantil', category: 'Quarto', width: 1.0, depth: 0.5, height: 0.6,
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.03, 0.03, '#f2c14e', 'wood'), ...legs(w, d, 0.03, 0.04, h - 0.03, WHITE)],
+  },
+  {
+    id: 'toy_chest', name: 'Baú de brinquedos', category: 'Quarto', width: 0.8, depth: 0.45, height: 0.5,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#7fb2e5', 'wood'), B(0, 0, w + 0.02, d + 0.02, h - 0.04, 0.04, '#f2c14e', 'wood')],
+  },
+
+  // ---------- Banheiro ----------
+  {
+    id: 'double_vanity', name: 'Bancada com 2 cubas', category: 'Banheiro', width: 1.6, depth: 0.5, height: 0.85,
+    parts: (w, d, h) => [B(0, -0.03, w, d - 0.06, 0.25, h - 0.28, '#8b6b4a', 'wood'), B(0, 0, w, d, h - 0.03, 0.03, MARBLE, 'ceramic'), C(-w / 4, 0.03, 0.4, 0.32, h, 0.12, WHITE, 'ceramic'), C(w / 4, 0.03, 0.4, 0.32, h, 0.12, WHITE, 'ceramic')],
+  },
+  {
+    id: 'pcd_toilet', name: 'Bacia acessível com barras (NBR 9050)', category: 'Banheiro', width: 0.8, depth: 0.7, height: 0.8,
+    parts: (w, d, h) => [B(0, -d / 2 + 0.1, 0.38, 0.2, 0.36, 0.4, WHITE, 'ceramic'), C(0, 0.08, 0.38, 0.5, 0, 0.46, WHITE, 'ceramic'), B(w / 2 - 0.03, 0, 0.04, 0.8, h - 0.05, 0.04, STEEL, 'metal'), B(0, -d / 2 + 0.03, 0.8, 0.04, h - 0.05, 0.04, STEEL, 'metal')],
+  },
+  {
+    id: 'towel_rail', name: 'Toalheiro térmico', category: 'Banheiro', width: 0.5, depth: 0.08, height: 0.9, elevation: 0.6,
+    parts: (w, d, h) => [B(-w / 2 + 0.02, 0, 0.03, d, 0, h, STEEL, 'metal'), B(w / 2 - 0.02, 0, 0.03, d, 0, h, STEEL, 'metal'), ...[0.1, 0.3, 0.5, 0.7, 0.85].map((y) => C(0, 0, w, 0.025, y * h, 0.025, STEEL, 'metal'))],
+  },
+  {
+    id: 'washbasin_column', name: 'Lavatório de coluna', category: 'Banheiro', width: 0.5, depth: 0.45, height: 0.85,
+    parts: (w, d, h) => [C(0, 0, 0.2, 0.2, 0, h - 0.15, WHITE, 'ceramic'), B(0, 0, w, d, h - 0.15, 0.15, WHITE, 'ceramic')],
+  },
+
+  // ---------- Lavanderia ----------
+  {
+    id: 'tanque_inox', name: 'Tanque com bancada e armário', category: 'Lavanderia', width: 1.2, depth: 0.6, height: 0.9,
+    parts: (w, d, h) => [B(0, -0.02, w, d - 0.04, 0, h - 0.03, WHITE, 'wood'), B(0, 0, w, d, h - 0.03, 0.03, GRANITE, 'ceramic'), B(-w / 4, 0.02, 0.5, 0.42, h - 0.02, 0.01, '#9aa3ab', 'metal')],
+  },
+  {
+    id: 'ironing_board', name: 'Tábua de passar', category: 'Lavanderia', width: 1.3, depth: 0.4, height: 0.9,
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.03, 0.03, '#7fb2e5', 'fabric'), B(0, 0, 0.03, d * 0.6, 0, h - 0.03, STEEL, 'metal')],
+  },
+  {
+    id: 'gas_heater', name: 'Aquecedor a gás de passagem', category: 'Lavanderia', width: 0.4, depth: 0.2, height: 0.65, elevation: 1.4,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#f4f5f6', 'ceramic'), C(0, 0, 0.1, 0.1, h, 0.3, STEEL, 'metal')],
+  },
+  {
+    id: 'clothesline_ceiling', name: 'Varal de teto', category: 'Lavanderia', width: 1.2, depth: 0.6, height: 0.1, elevation: 2.2,
+    parts: (w, d, h) => [...[-0.25, -0.08, 0.08, 0.25].map((z) => C(0, z, w, 0.02, h / 2, 0.02, STEEL, 'metal')), B(-w / 2, 0, 0.04, d, 0, h, '#888', 'metal'), B(w / 2, 0, 0.04, d, 0, h, '#888', 'metal')],
+  },
+
+  // ---------- Escritório ----------
+  {
+    id: 'meeting_table', name: 'Mesa de reunião (6 pessoas)', category: 'Escritório', width: 2.0, depth: 1.0, height: 0.75,
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.03, 0.03, WHITE, 'wood'), B(-w / 2 + 0.3, 0, 0.06, d - 0.2, 0, h - 0.03, BLACK, 'metal'), B(w / 2 - 0.3, 0, 0.06, d - 0.2, 0, h - 0.03, BLACK, 'metal')],
+  },
+  {
+    id: 'gamer_chair', name: 'Cadeira gamer', category: 'Escritório', width: 0.7, depth: 0.7, height: 1.35,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, 0.08, BLACK, 'metal'), C(0, 0, 0.06, 0.06, 0.08, 0.35, '#555', 'metal'), B(0, 0.05, 0.55, 0.5, 0.43, 0.1, BLACK, 'fabric'), B(0, -d / 2 + 0.12, 0.55, 0.12, 0.5, h - 0.5, '#c0392b', 'fabric')],
+  },
+  {
+    id: 'drafting_table', name: 'Prancheta de desenho', category: 'Escritório', width: 1.2, depth: 0.8, height: 1.0,
+    parts: (w, d, h) => [{ ...B(0, 0, w, d, h - 0.05, 0.03, '#f4f1ea', 'wood'), ry: 0 }, ...legs(w, d, 0.05, 0.04, h - 0.05, '#3a3f44', 'metal')],
+  },
+
+  // ---------- Iluminação ----------
+  {
+    id: 'pendant', name: 'Pendente', category: 'Iluminação', width: 0.4, depth: 0.4, height: 0.9, elevation: 1.7,
+    light: { y: 0.1, color: '#ffe2a8', intensity: 2.5 },
+    parts: (w, d, h) => [C(0, 0, 0.01, 0.01, 0.25, h - 0.25, BLACK, 'metal'), C(0, 0, w, d, 0, 0.25, BLACK, 'metal')],
+  },
+  {
+    id: 'pendant_trio', name: 'Pendentes em trio (balcão)', category: 'Iluminação', width: 1.6, depth: 0.25, height: 0.9, elevation: 1.75,
+    light: { y: 0.1, color: '#ffe2a8', intensity: 3 },
+    parts: (w, d, h) => [-1, 0, 1].flatMap((i) => [C((i * w) / 3, 0, 0.01, 0.01, 0.2, h - 0.2, BLACK, 'metal'), S((i * w) / 3, 0, d, d, 0, 0.25, '#e6c27a', 'glass')]),
+  },
+  {
+    id: 'spot_rail', name: 'Trilho de spots', category: 'Iluminação', width: 1.5, depth: 0.08, height: 0.15, elevation: 2.5,
+    light: { y: 0, color: '#fff3d6', intensity: 2 },
+    parts: (w, d, h) => [B(0, 0, w, d, h - 0.04, 0.04, BLACK, 'metal'), ...[-0.35, -0.12, 0.12, 0.35].map((x) => C(x * w, 0, 0.07, 0.07, 0, h - 0.04, BLACK, 'metal'))],
+  },
+  {
+    id: 'wall_sconce', name: 'Arandela', category: 'Iluminação', width: 0.2, depth: 0.12, height: 0.25, elevation: 1.8,
+    light: { y: 0.1, color: '#ffe2a8', intensity: 1.2 },
+    parts: (w, d, h) => [B(0, -d / 2 + 0.01, 0.08, 0.02, 0.05, 0.15, BLACK, 'metal'), C(0, 0, w * 0.6, d, 0, h, '#f4e3c3', 'glass')],
+  },
+
+  // ---------- Decoração ----------
+  {
+    id: 'painting', name: 'Quadro', category: 'Decoração', width: 1.0, depth: 0.03, height: 0.7, elevation: 1.3,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#2f3236', 'wood'), B(-w * 0.1, d / 2 + 0.002, w * 0.5, 0.004, h * 0.2, h * 0.6, '#d98c3a'), B(w * 0.2, d / 2 + 0.002, w * 0.4, 0.004, h * 0.15, h * 0.5, '#2f7cf6')],
+  },
+  {
+    id: 'rug_round', name: 'Tapete redondo', category: 'Decoração', width: 2.0, depth: 2.0, height: 0.01,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, h, '#c8b89d', 'fabric'), C(0, 0, w * 0.75, d * 0.75, 0.001, h, '#b3a084', 'fabric')],
+  },
+  {
+    id: 'floor_vase', name: 'Vaso decorativo de chão', category: 'Decoração', width: 0.35, depth: 0.35, height: 0.9,
+    parts: (w, d, h) => [S(0, 0, w, d, 0, h * 0.6, '#3e5f73', 'ceramic'), C(0, 0, w * 0.4, d * 0.4, h * 0.5, h * 0.25, '#3e5f73', 'ceramic'), ...[-0.05, 0.05].map((x) => C(x, 0, 0.01, 0.01, h * 0.7, h * 0.3, '#8b6b4a', 'wood'))],
+  },
+  {
+    id: 'wall_niches', name: 'Nichos de parede', category: 'Decoração', width: 1.2, depth: 0.25, height: 0.9, elevation: 1.2,
+    parts: (w, d, h) => [B(-w / 4, 0, w / 2 - 0.05, d, h / 2, h / 2, WOOD_LIGHT, 'wood'), B(w / 4, 0, w / 2 - 0.05, d, 0, h / 2, WOOD_LIGHT, 'wood')],
+  },
+);
+
+// reorganiza itens antigos nas novas categorias
+for (const c of CATALOG) {
+  if (c.id === 'tree' || c.id === 'shrub') c.category = 'Jardim';
+  if (c.id === 'car') {
+    c.category = 'Garagem';
+    c.name = 'Carro sedã';
+  }
+  if (['bbq', 'pool', 'lounger', 'patio_set'].includes(c.id)) c.category = 'Área gourmet';
+  if (c.id === 'tree') c.name = 'Árvore (copa larga)';
+  if (c.id === 'stair_u') c.name = 'Escada em U, lance duplo (2 lances + patamar)';
+  if (c.id === 'bar_counter') c.name = 'Bancada americana (granito)';
+}
+
 export const CATALOG_BY_ID: Record<string, CatalogItem> = Object.fromEntries(CATALOG.map((c) => [c.id, c]));
 
 export const CATEGORIES = [...new Set(CATALOG.map((c) => c.category))];
