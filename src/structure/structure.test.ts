@@ -145,3 +145,16 @@ describe('tramitação de cargas', () => {
     expect(r.issues.some((i) => i.status === 'fail' && i.text.includes('sem caminho'))).toBe(true);
   });
 });
+
+describe('fundação inteligente', () => {
+  it('pilares vizinhos ganham sapata associada em vez de sapatas sobrepostas', () => {
+    const b = sobrado();
+    const r = analyzeStructure(b);
+    const assoc = r.footings.filter((f) => f.kind === 'associada');
+    expect(assoc.length).toBeGreaterThan(0);
+    expect(assoc[0].pillarIds.length).toBe(2);
+    expect(r.issues.some((i) => i.text.includes('Sobrepõe'))).toBe(false);
+    // toda a carga continua chegando ao solo dentro da tensão admissível
+    for (const f of r.footings) expect((f.N * 1.1) / (f.B * f.L)).toBeLessThanOrEqual(b.structure.settings.soilStress + 1e-6);
+  });
+});

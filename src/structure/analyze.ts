@@ -106,10 +106,12 @@ export interface FootingResult {
   id: string;
   code: string;
   pillarId: string;
+  /** Pilares apoiados (mais de um na sapata associada). */
+  pillarIds: string[];
   p: Vec2;
   rotation: number;
   N: number;
-  kind: 'sapata' | 'estaca' | 'radier';
+  kind: 'sapata' | 'estaca' | 'radier' | 'associada';
   B: number;
   L: number;
   h: number;
@@ -565,7 +567,7 @@ export function analyzeStructure(building: Building): StructureResult {
         notes.push(`${piles} estacas num só bloco: avaliar estaca de maior capacidade.`);
       }
       const side = piles === 1 ? 0.6 : piles === 2 ? 1.3 : 1.5;
-      footings.push({ id: `f-${p.id}`, code: code.replace('S', 'B'), pillarId: p.id, p: { x: p.x, y: p.y }, rotation: p.rotation, N, kind: 'estaca', B: piles === 1 ? 0.6 : 0.6, L: side, h: 0.5, piles, status, notes: [...notes, `Bloco sobre ${piles} estaca(s) de ${s.pileCapacity} kN.`] });
+      footings.push({ id: `f-${p.id}`, code: code.replace('S', 'B'), pillarId: p.id, pillarIds: [p.id], p: { x: p.x, y: p.y }, rotation: p.rotation, N, kind: 'estaca', B: piles === 1 ? 0.6 : 0.6, L: side, h: 0.5, piles, status, notes: [...notes, `Bloco sobre ${piles} estaca(s) de ${s.pileCapacity} kN.`] });
       continue;
     }
     const Nf = N * 1.1; // + peso próprio da sapata e do solo sobre ela
@@ -580,31 +582,74 @@ export function analyzeStructure(building: Building): StructureResult {
     const stress = Nf / (B * L);
     notes.push(`Tensão no solo: ${r2(stress)} kPa (admissível ${s.soilStress} kPa).`);
     if (stress > s.soilStress * 1.001) status = 'fail';
-    footings.push({ id: `f-${p.id}`, code, pillarId: p.id, p: { x: p.x, y: p.y }, rotation: p.rotation, N, kind: s.foundation === 'radier' ? 'radier' : 'sapata', B, L, h: hS, piles: 0, status, notes });
+    footings.push({ id: `f-${p.id}`, code, pillarId: p.id, pillarIds: [p.id], p: { x: p.x, y: p.y }, rotation: p.rotation, N, kind: s.foundation === 'radier' ? 'radier' : 'sapata', B, L, h: hS, piles: 0, status, notes });
   }
 
-  // sobreposição de sapatas
+  // sapatas que se sobrepõem viram SAPATA ASSOCIADA (uma sapata para os pilares vizinhos)
   if (s.foundation === 'sapata') {
-    for (let i = 0; i < footings.length; i++) {
-      for (let j = i + 1; j < footings.length; j++) {
-        const a = footings[i];
-        const b = footings[j];
-        const ra = Math.max(a.B, a.L) / 2;
-        const rb = Math.max(b.B, b.L) / 2;
-        const ext = (f: FootingResult) => {
-          const c = Math.abs(Math.cos(f.rotation));
-          return { hx: (c > 0.7 ? f.L : f.B) / 2, hy: (c > 0.7 ? f.B : f.L) / 2 };
-        };
-        const ea = ext(a);
-        const eb = ext(b);
-        if (dist(a.p, b.p) < ra + rb && Math.abs(a.p.x - b.p.x) < ea.hx + eb.hx && Math.abs(a.p.y - b.p.y) < ea.hy + eb.hy) {
-          a.status = worst(a.status, 'warn');
-          b.status = worst(b.status, 'warn');
-          a.notes.push(`Sobrepõe a sapata ${b.code}: usar sapata associada ou radier.`);
-          b.notes.push(`Sobrepõe a sapata ${a.code}: usar sapata associada ou radier.`);
-        }
+    const overlap = (a: FootingResult, b: FootingResult) => {
+      const ext = (f: FootingResult) => {
+        const c = Math.abs(Math.cos(f.rotation));
+        return { hx: (c > 0.7 ? f.L : f.B) / 2, hy: (c > 0.7 ? f.B : f.L) / 2 };
+      };
+      const ea = ext(a);
+      const eb = ext(b);
+      return Math.abs(a.p.x - b.p.x) < ea.hx + eb.hx + 0.1 && Math.abs(a.p.y - b.p.y) < ea.hy + eb.hy + 0.1;
+    };
+    const parent = footings.map((_, k) => k);
+    const find = (k: number): number => (parent[k] === k ? k : (parent[k] = find(parent[k])));
+    for (let i2 = 0; i2 < footings.length; i2++) for (let j2 = i2 + 1; j2 < footings.length; j2++) if (overlap(footings[i2], footings[j2])) parent[find(i2)] = find(j2);
+    const groups = new Map<number, FootingResult[]>();
+    footings.forEach((f, k) => groups.set(find(k), [...(groups.get(find(k)) ?? []), f]));
+    const merged: FootingResult[] = [];
+    for (const g of groups.values()) {
+      if (g.length === 1) {
+        merged.push(g[0]);
+        continue;
       }
+      const N = g.reduce((acc, f) => acc + f.N, 0);
+      // eixo da sapata: direção entre os pilares mais distantes
+      let best = [g[0], g[1]];
+      for (const a of g) for (const b of g) if (dist(a.p, b.p) > dist(best[0].p, best[1].p)) best = [a, b];
+      const ang = Math.atan2(best[1].p.y - best[0].p.y, best[1].p.x - best[0].p.x);
+      const d = { x: Math.cos(ang), y: Math.sin(ang) };
+      const ts = g.map((f) => f.p.x * d.x + f.p.y * d.y);
+      const lo = Math.min(...ts);
+      const hi = Math.max(...ts);
+      // centro da sapata no centro de carga (resultante), para tensão uniforme no solo
+      const tc = g.reduce((acc, f, k) => acc + f.N * ts[k], 0) / N;
+      const half = Math.max(tc - lo, hi - tc) + 0.45;
+      const L = Math.ceil(2 * half * 20) / 20;
+      const A = (N * 1.1) / s.soilStress;
+      const B = Math.max(0.6, Math.ceil((A / L) * 20) / 20);
+      const nrm = { x: -d.y, y: d.x };
+      const off = g.reduce((acc, f) => acc + f.N * (f.p.x * nrm.x + f.p.y * nrm.y), 0) / N;
+      const center = { x: d.x * tc + nrm.x * off, y: d.y * tc + nrm.y * off };
+      const hS = Math.max(0.3, Math.ceil(((B - 0.14) / 3) * 20) / 20);
+      const stress = (N * 1.1) / (B * L);
+      const codes = g.map((f) => f.code).join('+');
+      merged.push({
+        id: `fa-${g.map((f) => f.pillarId).join('-')}`,
+        code: codes,
+        pillarId: g[0].pillarId,
+        pillarIds: g.flatMap((f) => f.pillarIds),
+        p: center,
+        rotation: ang,
+        N,
+        kind: 'associada',
+        B,
+        L,
+        h: hS,
+        piles: 0,
+        status: stress > s.soilStress * 1.001 ? 'fail' : 'ok',
+        notes: [
+          `Sapata associada para ${g.length} pilares próximos (as sapatas isoladas se sobreporiam).`,
+          `Centro no ponto de aplicação da resultante; viga de rigidez entre os pilares.`,
+          `Tensão no solo: ${r2(stress)} kPa (admissível ${s.soilStress} kPa).`,
+        ],
+      });
     }
+    footings.splice(0, footings.length, ...merged);
     const footArea = footings.reduce((acc, f) => acc + f.B * f.L, 0);
     if (footprint > 0 && footArea > 0.5 * footprint) {
       issues.push({ status: 'warn', text: `As sapatas ocupam ${Math.round((footArea / footprint) * 100)}% da projeção da casa: avaliar radier.` });

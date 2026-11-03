@@ -159,7 +159,7 @@ export function appendStructuralSheets(doc: Doc, b: Building, r: StructureResult
     ['Cód.', 'Pilar', 'Nk kN', s.foundation === 'estaca' ? 'Estacas' : 'B × L m', 'h m', 'Observações', 'Situação'],
     r.footings.map((f) => [
       f.code,
-      r.pillars.find((p) => p.id === f.pillarId)?.code ?? '',
+      f.pillarIds.map((id) => r.pillars.find((p) => p.id === id)?.code ?? '').join('+'),
       f1(f.N),
       f.kind === 'estaca' ? String(f.piles) : `${f2(f.B)} × ${f2(f.L)}`,
       f2(f.h),

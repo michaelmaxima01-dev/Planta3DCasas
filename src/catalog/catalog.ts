@@ -603,6 +603,144 @@ CATALOG.push(
   },
 );
 
+
+/** Mais escadas e móveis. */
+CATALOG.push(
+  {
+    id: 'stair_landing', name: 'Escada reta com patamar', category: 'Escadas', width: 0.9, depth: 5.2, height: 2.95, stair: true,
+    footprint: (h) => ({ width: 0.9, depth: steps(h).n * steps(h).tread + 0.9 }),
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const n1 = Math.ceil(n / 2);
+      const tread = (d - 0.9) / n;
+      const parts: Part[] = [];
+      let z = d / 2;
+      for (let i = 0; i < n; i++) {
+        if (i === n1) {
+          parts.push(B(0, z - 0.45, w, 0.9, 0, n1 * rise, '#bfa98b', 'wood'));
+          z -= 0.9;
+        }
+        parts.push(B(0, z - tread / 2, w, tread, 0, (i + 1) * rise, i % 2 ? STEP_B : STEP_A, 'wood'));
+        z -= tread;
+      }
+      return parts;
+    },
+  },
+  {
+    id: 'stair_floating', name: 'Escada flutuante (degraus em balanço)', category: 'Escadas', width: 0.9, depth: 4.34, height: 2.95, stair: true,
+    footprint: (h) => ({ width: 0.9, depth: steps(h).n * steps(h).tread }),
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const tread = d / n;
+      const parts: Part[] = [];
+      for (let i = 0; i < n; i++) parts.push(B(0.03, d / 2 - (i + 0.5) * tread, w - 0.06, tread - 0.02, (i + 1) * rise - 0.06, 0.06, '#8b5e3c', 'wood'));
+      parts.push(B(-w / 2 + 0.03, 0, 0.06, d, 0, h, '#2f3236', 'metal'));
+      return parts;
+    },
+  },
+  {
+    id: 'stair_ladder', name: 'Escada marinheiro', category: 'Escadas', width: 0.6, depth: 0.5, height: 2.95, stair: true,
+    footprint: () => ({ width: 0.6, depth: 0.5 }),
+    parts: (w, _d, h) => {
+      const n = Math.ceil(h / 0.3);
+      const parts: Part[] = [B(-w / 2 + 0.02, 0, 0.04, 0.04, 0, h + 0.9, '#5b5f63', 'metal'), B(w / 2 - 0.02, 0, 0.04, 0.04, 0, h + 0.9, '#5b5f63', 'metal')];
+      for (let i = 1; i <= n; i++) parts.push(C(0, 0, w - 0.04, 0.03, (i * h) / n, 0.03, '#7a7f84', 'metal'));
+      return parts;
+    },
+  },
+  {
+    id: 'sofa_l', name: 'Sofá de canto (em L)', category: 'Sala', width: 2.6, depth: 1.8, height: 0.85,
+    parts: (w, d, h) => {
+      const fabric = '#7b8794';
+      const back = 0.22;
+      return [
+        ...legs(w, 0.9, 0.06, 0.05, 0.1, WOOD_DARK).map((p) => ({ ...p, z: p.z - (d - 0.9) / 2 })),
+        B(0, -d / 2 + 0.45, w, 0.9, 0.1, 0.3, fabric, 'fabric'),
+        B(w / 2 - 0.45, 0.45, 0.9, d - 0.9, 0.1, 0.3, fabric, 'fabric'),
+        B(0, -d / 2 + back / 2, w, back, 0.4, h - 0.4, fabric, 'fabric'),
+        B(w / 2 - back / 2, 0, back, d, 0.4, h - 0.4, fabric, 'fabric'),
+        B(-w / 2 + 0.1, -d / 2 + 0.45, 0.2, 0.9, 0.4, 0.22, fabric, 'fabric'),
+        B(-0.2, -d / 2 + 0.55, w - 0.85, 0.66, 0.4, 0.12, shade(fabric, 12), 'fabric'),
+        B(w / 2 - 0.55, 0.35, 0.66, d - 0.95, 0.4, 0.12, shade(fabric, 12), 'fabric'),
+      ];
+    },
+  },
+  {
+    id: 'recliner', name: 'Poltrona reclinável', category: 'Sala', width: 0.9, depth: 1.0, height: 1.05,
+    parts: (w, d, h) => [B(0, 0.05, w, d - 0.1, 0.12, 0.35, '#5a4636', 'fabric'), B(0, -d / 2 + 0.12, w, 0.24, 0.12, h - 0.12, '#5a4636', 'fabric'), B(-w / 2 + 0.09, 0, 0.18, d, 0.12, 0.55, '#4d3c2e', 'fabric'), B(w / 2 - 0.09, 0, 0.18, d, 0.12, 0.55, '#4d3c2e', 'fabric')],
+  },
+  {
+    id: 'floating_rack', name: 'Rack suspenso', category: 'Sala', width: 1.8, depth: 0.35, height: 0.35, elevation: 0.45,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#3b3f45', 'wood'), B(0, d / 2 + 0.003, w - 0.04, 0.006, 0.02, h - 0.04, '#55595e')],
+  },
+  {
+    id: 'fireplace', name: 'Lareira', category: 'Sala', width: 1.4, depth: 0.5, height: 1.1,
+    light: { y: 0.4, color: '#ff9a3c', intensity: 3 },
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#d8d2c8', 'ceramic'), B(0, d / 2 - 0.02, w * 0.55, 0.04, 0.15, 0.55, '#1b1b1b', 'metal'), S(0, d / 2 - 0.15, 0.3, 0.15, 0.17, 0.25, '#ff8c2a', 'glass'), B(0, 0, w + 0.1, d + 0.05, h, 0.05, '#bdb6aa', 'ceramic')],
+  },
+  {
+    id: 'round_table', name: 'Mesa redonda (4 lugares)', category: 'Cozinha', width: 1.1, depth: 1.1, height: 0.76,
+    parts: (w, d, h) => [C(0, 0, w, d, h - 0.04, 0.04, WOOD, 'wood'), C(0, 0, 0.12, 0.12, 0.05, h - 0.09, WOOD_DARK, 'wood'), C(0, 0, 0.55, 0.55, 0, 0.05, WOOD_DARK, 'wood')],
+  },
+  {
+    id: 'bar_counter', name: 'Bancada americana', category: 'Cozinha', width: 1.8, depth: 0.5, height: 1.05,
+    parts: (w, d, h) => [B(0, -0.05, w, d - 0.1, 0, h - 0.04, '#efe9df', 'wood'), B(0, 0, w, d + 0.1, h - 0.04, 0.04, '#33363a', 'ceramic')],
+  },
+  {
+    id: 'bar_stool', name: 'Banqueta alta', category: 'Cozinha', width: 0.4, depth: 0.4, height: 0.75,
+    parts: (w, d, h) => [C(0, 0, w, d, h - 0.06, 0.06, '#2b2b2b', 'fabric'), C(0, 0, 0.05, 0.05, 0.03, h - 0.09, STEEL, 'metal'), C(0, 0, w * 0.85, d * 0.85, 0, 0.03, STEEL, 'metal')],
+  },
+  {
+    id: 'wine_rack', name: 'Adega / cristaleira', category: 'Cozinha', width: 0.8, depth: 0.4, height: 1.8,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, WOOD_DARK, 'wood'), B(0, d / 2 + 0.004, w - 0.06, 0.008, 0.06, h - 0.12, '#cfe3ee', 'glass')],
+  },
+  {
+    id: 'box_bed', name: 'Cama box queen', category: 'Quarto', width: 1.58, depth: 1.98, height: 0.62,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, 0.38, '#d9d4cc', 'fabric'), B(0, 0, w - 0.02, d - 0.02, 0.38, h - 0.38, '#f4f1ea', 'fabric'), B(-w / 4, -d / 2 + 0.25, w / 2 - 0.1, 0.32, h, 0.1, '#ffffff', 'fabric'), B(w / 4, -d / 2 + 0.25, w / 2 - 0.1, 0.32, h, 0.1, '#ffffff', 'fabric'), B(0, d * 0.15, w, d * 0.6, h, 0.03, '#a68c74', 'fabric')],
+  },
+  {
+    id: 'closet', name: 'Closet aberto (araras)', category: 'Quarto', width: 2.0, depth: 0.6, height: 2.2,
+    parts: (w, d, h) => [B(-w / 2 + 0.015, 0, 0.03, d, 0, h, WHITE, 'wood'), B(w / 2 - 0.015, 0, 0.03, d, 0, h, WHITE, 'wood'), B(0, 0, w, d, h - 0.03, 0.03, WHITE, 'wood'), B(0, 0, w, d, 0, 0.35, WHITE, 'wood'), C(0, 0, w - 0.06, 0.025, 1.75, 0.025, STEEL, 'metal'), ...[-0.6, -0.3, 0, 0.3, 0.6].map((x) => B((x * w) / 2, 0, 0.04, d * 0.8, 0.9, 0.85, ['#6c8ebf', '#c9a27a', '#8a8f96', '#b5576b', '#e9e4dc'][Math.round((x + 0.6) / 0.3)], 'fabric'))],
+  },
+  {
+    id: 'shoe_rack', name: 'Sapateira', category: 'Quarto', width: 0.8, depth: 0.32, height: 1.0,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, WOOD_LIGHT, 'wood'), B(0, d / 2 + 0.003, w - 0.04, 0.006, h / 2, 0.006, WOOD_DARK)],
+  },
+  {
+    id: 'l_desk', name: 'Escrivaninha em L', category: 'Escritório', width: 1.6, depth: 1.4, height: 0.75,
+    parts: (w, d, h) => [B(0, -d / 2 + 0.3, w, 0.6, h - 0.03, 0.03, WOOD_LIGHT, 'wood'), B(w / 2 - 0.3, 0.3, 0.6, d - 0.6, h - 0.03, 0.03, WOOD_LIGHT, 'wood'), B(-w / 2 + 0.02, -d / 2 + 0.3, 0.03, 0.58, 0, h - 0.03, WHITE, 'wood'), B(w / 2 - 0.3, d / 2 - 0.02, 0.58, 0.03, 0, h - 0.03, WHITE, 'wood'), B(0, -d / 2 + 0.12, 0.58, 0.03, h + 0.12, 0.34, BLACK, 'glass')],
+  },
+  {
+    id: 'treadmill', name: 'Esteira', category: 'Escritório', width: 0.8, depth: 1.8, height: 1.4,
+    parts: (w, d, h) => [B(0, 0.1, w, d - 0.2, 0, 0.18, '#2b2d30', 'metal'), B(0, 0.1, w - 0.2, d - 0.3, 0.18, 0.01, '#3c4045', 'fabric'), B(-w / 2 + 0.05, -d / 2 + 0.15, 0.05, 0.05, 0, h, '#5b5f63', 'metal'), B(w / 2 - 0.05, -d / 2 + 0.15, 0.05, 0.05, 0, h, '#5b5f63', 'metal'), B(0, -d / 2 + 0.15, w, 0.25, h - 0.1, 0.12, '#2b2d30', 'metal')],
+  },
+  {
+    id: 'ofuro', name: 'Ofurô', category: 'Banheiro', width: 1.3, depth: 1.3, height: 0.7,
+    parts: (w, d, h) => [C(0, 0, w, d, 0, h, '#a0784f', 'wood'), C(0, 0, w - 0.1, d - 0.1, h - 0.08, 0.06, '#a9d6ee', 'glass')],
+  },
+  {
+    id: 'corner_tub', name: 'Banheira de canto', category: 'Banheiro', width: 1.4, depth: 1.4, height: 0.55,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, WHITE, 'ceramic'), S(0.1, 0.1, w * 0.85, d * 0.85, h - 0.12, 0.11, '#a9d6ee', 'glass')],
+  },
+  {
+    id: 'ceiling_fan', name: 'Ventilador de teto', category: 'Iluminação', width: 1.2, depth: 1.2, height: 0.4, elevation: 2.35,
+    light: { y: 0.0, color: '#fff3d6', intensity: 4 },
+    parts: (w, _d, h) => [C(0, 0, 0.02, 0.02, h * 0.4, h * 0.6, '#d9d9d9', 'metal'), C(0, 0, 0.22, 0.22, 0, h * 0.4, '#ececec', 'metal'), ...[0, 1, 2, 3].map((k) => ({ shape: 'box' as const, x: Math.cos((k * Math.PI) / 2) * w * 0.27, y: h * 0.3, z: Math.sin((k * Math.PI) / 2) * w * 0.27, sx: w * 0.42, sy: 0.01, sz: 0.12, color: '#c9a77c', material: 'wood' as const, ry: (k * Math.PI) / 2 }))],
+  },
+  {
+    id: 'split_ac', name: 'Ar-condicionado split', category: 'Iluminação', width: 0.9, depth: 0.22, height: 0.3, elevation: 2.2,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#f4f5f6', 'ceramic'), B(0, d / 2 + 0.003, w - 0.1, 0.006, 0.04, 0.05, '#c9ced3')],
+  },
+  {
+    id: 'wall_mirror', name: 'Espelho de parede', category: 'Decoração', width: 0.8, depth: 0.03, height: 1.6, elevation: 0.3,
+    parts: (w, d, h) => [B(0, 0, w, d, 0, h, '#b8860b', 'metal'), B(0, d / 2 + 0.002, w - 0.06, 0.004, 0.03, h - 0.06, '#dbe9f2', 'glass')],
+  },
+  {
+    id: 'curtain', name: 'Cortina', category: 'Decoração', width: 2.0, depth: 0.12, height: 2.5,
+    parts: (w, d, h) => [C(0, 0, w + 0.2, 0.03, h - 0.03, 0.03, '#888', 'metal'), B(-w / 2 + w * 0.18, 0, w * 0.34, d, 0.02, h - 0.06, '#e9e1d2', 'fabric'), B(w / 2 - w * 0.18, 0, w * 0.34, d, 0.02, h - 0.06, '#e9e1d2', 'fabric')],
+  },
+);
+
 export const CATALOG_BY_ID: Record<string, CatalogItem> = Object.fromEntries(CATALOG.map((c) => [c.id, c]));
 
 export const CATEGORIES = [...new Set(CATALOG.map((c) => c.category))];

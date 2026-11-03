@@ -5,6 +5,7 @@ import { dist } from '../geometry/vec';
 import { clampOpeningOffset } from '../geometry/walls';
 import { deleteSelection, duplicateFurniture, moveNode, setRoomLabel, setWallLength } from '../model/ops';
 import { FLOOR_FINISHES } from '../model/finishes';
+import { ROOM_TYPES, furnishRoom } from '../model/furnish';
 import { OPENING_STYLES, styleDef, styleName, styleOf } from '../model/openings';
 import type { OpeningStyle } from '../model/types';
 import type { Plan } from '../model/types';
@@ -146,6 +147,41 @@ export function PropertiesPanel() {
         return (
           <>
             <h3>Cômodo</h3>
+            <label className="select-field">
+              <span>Tipo do cômodo</span>
+              <select
+                value={ROOM_TYPES.find((t) => t.name === r.name)?.key ?? ''}
+                onChange={(e) => {
+                  const t = ROOM_TYPES.find((x) => x.key === e.target.value);
+                  if (t) save({ name: t.name, floorColor: t.color });
+                }}
+              >
+                <option value="">Escolha…</option>
+                {ROOM_TYPES.map((t) => (
+                  <option key={t.key} value={t.key}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            {ROOM_TYPES.some((t) => t.name === r.name) && (
+              <button
+                className="primary-btn"
+                onClick={() => {
+                  const t = ROOM_TYPES.find((x) => x.name === r.name)!;
+                  let res = { placed: 0, skipped: [] as string[] };
+                  update((d) => {
+                    const room = detectRooms(d).find((x) => x.id === r.id || (x.labelId && x.labelId === r.labelId)) ?? r;
+                    res = furnishRoom(d, room, t.key);
+                  });
+                  useUI.getState().set({
+                    toast: `${res.placed} ${res.placed === 1 ? 'móvel colocado' : 'móveis colocados'} em "${r.name}".${res.skipped.length ? ` Sem espaço livre para: ${[...new Set(res.skipped)].join(', ')}.` : ''} Ajuste com as alças ou Ctrl+Z para desfazer.`,
+                  });
+                }}
+              >
+                ✦ Mobiliar automaticamente
+              </button>
+            )}
             <TextField label="Nome" value={r.name} onCommit={(name) => save({ name })} />
             <div className="stat"><span>Área útil</span><b>{fmtArea(r.area)}</b></div>
             <div className="stat"><span>Perímetro</span><b>{fmtMeters(r.perimeter)}</b></div>

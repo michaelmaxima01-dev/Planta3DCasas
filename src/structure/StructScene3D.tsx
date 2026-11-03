@@ -73,12 +73,16 @@ function Contents({ building }: { building: Building }) {
       </mesh>
 
       {result.footings.map((f) => {
-        const p = pillarById[f.pillarId];
         const top = -depth + f.h;
         return (
-          <group key={f.id} position={[f.p.x, 0, f.p.y]} rotation-y={-f.rotation} onClick={click('footing', f.id)}>
+          <group key={f.id}>
+            {/* arranques: do topo da sapata até o piso, um por pilar */}
+            {f.pillarIds.map((pid) => {
+              const p = pillarById[pid];
+              return p ? <mesh key={pid} geometry={unitBox} material={concrete} position={[p.x, top / 2, p.y]} rotation-y={-p.rotation} scale={[p.h / 100, -top, p.b / 100]} /> : null;
+            })}
+          <group position={[f.p.x, 0, f.p.y]} rotation-y={-f.rotation} onClick={click('footing', f.id)}>
             <mesh geometry={unitBox} material={mat('footing', f.id, f.status)} scale={[f.L, f.h, f.B]} position={[0, -depth + f.h / 2, 0]} />
-            {p && <mesh geometry={unitBox} material={concrete} scale={[p.h / 100, -top, p.b / 100]} position={[0, top / 2, 0]} />}
             {f.kind === 'estaca' &&
               Array.from({ length: f.piles }, (_, k) => (
                 <mesh key={k} position={[f.piles === 1 ? 0 : -f.L / 2 + 0.3 + (k * (f.L - 0.6)) / Math.max(1, f.piles - 1), -depth - 3, 0]}>
@@ -86,6 +90,7 @@ function Contents({ building }: { building: Building }) {
                   <meshStandardMaterial color="#9aa0a8" />
                 </mesh>
               ))}
+          </group>
           </group>
         );
       })}

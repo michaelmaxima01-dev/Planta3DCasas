@@ -938,3 +938,31 @@ table.calc.detail td {
 table.calc.detail small {
   color: var(--muted);
 }
+.tools-grid {
+  grid-template-columns: 1fr 1fr;
+}
+.swatch-row {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.swatch-row button {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.swatch-row button.active {
+  box-shadow: 0 0 0 2px var(--accent);
+}
+.handle {
+  cursor: pointer;
+}
+.handle.rot {
+  cursor: grab;
+}
+.annot-text {
+  cursor: move;
+}

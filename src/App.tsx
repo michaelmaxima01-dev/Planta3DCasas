@@ -22,6 +22,10 @@ const HINTS: Record<Tool, string> = {
   room: 'Clique em um canto e no canto oposto (ou digite 4x3 + Enter) para criar um cômodo retangular com 4 paredes • Esc cancela',
   door: 'Clique sobre uma parede para inserir a porta • Esc volta para Selecionar',
   window: 'Clique sobre uma parede para inserir a janela • Esc volta para Selecionar',
+  pencil: 'Lápis: arraste para desenhar à mão livre • escolha a cor na barra lateral • Esc volta',
+  arrow: 'Seta: arraste do início até a ponta • Shift trava 0°/90°',
+  text: 'Texto: clique onde quer a nota, digite e aperte Enter',
+  measure: 'Medir: arraste entre dois pontos (encaixa em cantos e paredes) • a medida fica marcada na planta',
   furniture: 'Clique na planta para posicionar • perto da parede ele encosta sozinho (Alt solta livre) • Esc cancela',
 };
 
@@ -31,7 +35,7 @@ const STRUCT_HINTS: Record<'select' | 'pillar' | 'beam', string> = {
   beam: 'Clique em dois pilares para criar a viga entre eles • Esc volta',
 };
 
-const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', c: 'room', d: 'door', j: 'window' };
+const KEY_TOOLS: Record<string, Tool> = { v: 'select', w: 'wall', c: 'room', d: 'door', j: 'window', l: 'pencil', a: 'arrow', t: 'text', m: 'measure' };
 
 export default function App() {
   const viewMode = useUI((s) => s.viewMode);

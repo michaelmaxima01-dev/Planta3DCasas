@@ -82,8 +82,20 @@ export interface ProjectMeta {
   art?: string;
 }
 
+/** Marcação livre na planta (rabisco, seta, texto ou medida). */
+export interface Annotation {
+  id: string;
+  kind: 'free' | 'arrow' | 'text' | 'measure';
+  pts: Vec2[];
+  text?: string;
+  color: string;
+  /** Altura do texto em metros (escala da planta). */
+  size?: number;
+}
+
 export interface Plan {
   version: 1;
+  annotations?: Record<string, Annotation>;
   meta?: ProjectMeta;
   nodes: Record<string, PlanNode>;
   walls: Record<string, Wall>;
@@ -112,5 +124,5 @@ export interface Building {
   roof?: import('../roof/roof').RoofModel;
 }
 
-export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room' | 'pillar' | 'beam' | 'slab' | 'footing';
+export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room' | 'pillar' | 'beam' | 'slab' | 'footing' | 'annotation';
 export type Selection = { kind: SelectionKind; id: string } | null;

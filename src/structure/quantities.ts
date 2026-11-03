@@ -136,8 +136,8 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
   F.row(s.foundation === 'estaca' ? 'Concreto das estacas e blocos' : 'Concreto das sapatas', 'm³', footVol, `${r.footings.length} un`);
   if (lean > 0) F.row('Concreto magro (lastro 5 cm)', 'm³', lean);
   let arr = 0;
-  for (const f of r.footings) {
-    const p = r.pillars.find((x) => x.id === f.pillarId);
+  for (const f of r.footings) for (const pid of f.pillarIds) {
+    const p = r.pillars.find((x) => x.id === pid);
     if (!p) continue;
     const H = Math.max(0, depth - f.h);
     arr += (p.b / 100) * (p.h / 100) * H;

@@ -114,7 +114,7 @@ export function StructPanel() {
       const src = building.structure.pillars[selection.id];
       if (!p || !src) return null;
       const below = r.pillars.find((q) => q.code === p.code && building.levels.findIndex((l) => l.id === q.levelId) === building.levels.findIndex((l) => l.id === p.levelId) - 1);
-      const footing = r.footings.find((x) => x.pillarId === p.id);
+      const footing = r.footings.find((x) => x.pillarIds.includes(p.id));
       return (
         <>
           <h3>
@@ -199,7 +199,7 @@ export function StructPanel() {
     if (selection.kind === 'footing') {
       const x = r.footings.find((s) => s.id === selection.id);
       if (!x) return null;
-      const p = r.pillars.find((q) => q.id === x.pillarId);
+      const p = { code: x.pillarIds.map((id) => r.pillars.find((q) => q.id === id)?.code).join(' + ') };
       return (
         <>
           <h3>

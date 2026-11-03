@@ -9,7 +9,7 @@ import { wallPlanPieces } from '../geometry/walls';
 import type { Opening, Plan } from '../model/types';
 import type { ProjectSchedule } from './schedule';
 
-export type Layer = 'PAREDES' | 'PORTAS' | 'JANELAS' | 'MOVEIS' | 'COTAS' | 'TEXTOS' | 'COMODOS' | 'PILARES' | 'VIGAS' | 'LAJES' | 'FUNDACAO';
+export type Layer = 'PAREDES' | 'PORTAS' | 'JANELAS' | 'MOVEIS' | 'COTAS' | 'TEXTOS' | 'COMODOS' | 'PILARES' | 'VIGAS' | 'LAJES' | 'FUNDACAO' | 'ANOTACOES';
 
 export const LAYERS: { name: Layer; color: number; label: string }[] = [
   // color = índice de cor do AutoCAD (ACI)
@@ -24,6 +24,7 @@ export const LAYERS: { name: Layer; color: number; label: string }[] = [
   { name: 'VIGAS', color: 6, label: 'Vigas' },
   { name: 'LAJES', color: 2, label: 'Lajes' },
   { name: 'FUNDACAO', color: 40, label: 'Fundação' },
+  { name: 'ANOTACOES', color: 1, label: 'Marcações' },
 ];
 
 interface Style {
@@ -260,6 +261,26 @@ export function buildDrawing(plan: Plan, sch: ProjectSchedule, o: DrawingOptions
         const d = normalize(sub(e.b, e.a));
         prims.push(...dimensionPrims(e.a, e.b, perp(d), mm(4), mm, fmtDim(e.length)));
       }
+    }
+  }
+
+  // marcações livres do usuário
+  for (const a of Object.values(plan.annotations ?? {})) {
+    if (a.kind === 'text') {
+      prims.push({ t: 'text', layer: 'ANOTACOES', p: a.pts[0], text: a.text ?? '', size: Math.max(1.8, ((a.size ?? 0.3) * 1000) / o.scale * 0.7), angle: 0, bold: true, color: a.color });
+      continue;
+    }
+    prims.push({ t: 'poly', layer: 'ANOTACOES', pts: a.pts, closed: false, stroke: a.color, weight: 0.35 });
+    const p0 = a.pts[0];
+    const p1 = a.pts[a.pts.length - 1];
+    const ang = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+    if (a.kind === 'arrow') {
+      const hl = mm(3);
+      for (const s2 of [-0.4, 0.4]) prims.push({ t: 'poly', layer: 'ANOTACOES', pts: [p1, { x: p1.x - hl * Math.cos(ang + s2), y: p1.y - hl * Math.sin(ang + s2) }], closed: false, stroke: a.color, weight: 0.35 });
+    }
+    if (a.kind === 'measure') {
+      const L = Math.hypot(p1.x - p0.x, p1.y - p0.y);
+      prims.push({ t: 'text', layer: 'ANOTACOES', p: { x: (p0.x + p1.x) / 2 - Math.sin(ang) * mm(2.5), y: (p0.y + p1.y) / 2 + Math.cos(ang) * -mm(2.5) }, text: fmtDim(L), size: 2, angle: readable(ang), color: a.color });
     }
   }
 

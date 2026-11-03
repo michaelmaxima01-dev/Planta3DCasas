@@ -1,11 +1,20 @@
 import { useState } from 'react';
 import { CATALOG, CATEGORIES } from '../catalog/catalog';
 import { type Tool, useUI } from '../store/uiStore';
+import { selectPlan, usePlan } from '../store/planStore';
 import { NumberField } from './Fields';
 import { LevelBar } from './LevelBar';
 import { OPENING_STYLES } from '../model/openings';
 import { RoofPanel } from './RoofPanel';
 import { fmtNumber } from './format';
+
+const ANNOT_TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
+  { id: 'pencil', label: 'Lápis', key: 'L', icon: '✎' },
+  { id: 'arrow', label: 'Seta', key: 'A', icon: '➚' },
+  { id: 'text', label: 'Texto', key: 'T', icon: 'T' },
+  { id: 'measure', label: 'Medir', key: 'M', icon: '↔' },
+];
+const ANNOT_COLORS = ['#e03131', '#1971c2', '#2f9e44', '#f08c00', '#7048e8', '#212529'];
 
 const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
   { id: 'select', label: 'Selecionar', key: 'V', icon: '➤' },
@@ -26,6 +35,9 @@ export function Sidebar() {
   const doorStyle = useUI((s) => s.doorStyle);
   const windowStyle = useUI((s) => s.windowStyle);
   const setUI = useUI((s) => s.set);
+  const annotColor = useUI((s) => s.annotColor);
+  const annotCount = usePlan((s) => Object.keys(selectPlan(s).annotations ?? {}).length);
+  const update = usePlan((s) => s.update);
   const [filter, setFilter] = useState('');
   const [open, setOpen] = useState<string | null>(CATEGORIES[0]);
 
@@ -45,6 +57,29 @@ export function Sidebar() {
             </button>
           ))}
         </div>
+      </section>
+
+      <section>
+        <h3>Marcações</h3>
+        <div className="tools tools-grid">
+          {ANNOT_TOOLS.map((t) => (
+            <button key={t.id} className={tool === t.id ? 'active' : ''} onClick={() => setTool(t.id)} title={`${t.label} (${t.key})`}>
+              <span className="icon">{t.icon}</span>
+              {t.label}
+              <kbd>{t.key}</kbd>
+            </button>
+          ))}
+        </div>
+        <div className="swatch-row">
+          {ANNOT_COLORS.map((c) => (
+            <button key={c} className={annotColor === c ? 'active' : ''} style={{ background: c }} onClick={() => setUI({ annotColor: c })} aria-label={`Cor ${c}`} />
+          ))}
+        </div>
+        {annotCount > 0 && (
+          <button className="link-btn" onClick={() => confirm('Apagar todas as marcações deste andar?') && update((d) => void (d.annotations = {}))}>
+            Apagar marcações deste andar ({annotCount})
+          </button>
+        )}
       </section>
 
       {(tool === 'door' || tool === 'window') && (

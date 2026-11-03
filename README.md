@@ -26,9 +26,24 @@ pnpm build      # build de produção
 | **Clique na cota** (ferramenta Selecionar) | Abre um campo para digitar o novo comprimento; o cômodo estica mantendo os encontros em T |
 | Caixa no canto da planta | Mostra o que está sendo digitado e as dicas da ferramenta |
 
+## Redimensionar, girar e marcar
+
+- **Alças**: selecione um móvel ou escada e arraste as alças das laterais para mudar largura e
+  profundidade (o lado oposto fica parado) ou a bolinha azul para girar (de 15 em 15°, Alt solta livre).
+  Portas e janelas ganham alças nas pontas para mudar a largura.
+- **Marcações** (barra lateral): Lápis (L) para desenhar à mão livre, Seta (A), Texto (T) e Medir (M),
+  com 6 cores. Selecione para mover ou apagar (Delete). Saem no PDF e no DXF (camada ANOTACOES).
+
+## Mobiliar automaticamente
+
+Clique num cômodo, escolha o **Tipo do cômodo** (sala, cozinha, jantar, suíte, quarto, infantil,
+banheiro, lavabo, lavanderia, escritório, garagem, varanda) e clique em **Mobiliar automaticamente**:
+os móveis certos são distribuídos encostados nas paredes, sem bloquear portas nem sobrepor nada
+(cama com criados-mudos dos lados, mesa com cadeiras em volta, mesa de centro em frente ao sofá…).
+
 ## Escadas e vãos
 
-Categoria **Escadas** do catálogo: reta, em L (com patamar), em U (dois lances) e caracol. Ao colocar,
+Categoria **Escadas** do catálogo: reta, reta com patamar, em L, em U, caracol, flutuante e marinheiro. Ao colocar,
 a escada é dimensionada pela altura do andar (fórmula de Blondel) e o **vão é aberto automaticamente
 no piso do andar de cima** (marcado com X na planta, guarda-corpo no 3D, área descontada da laje),
 para qualquer andar: térreo → 1º, 1º → 2º e assim por diante. Se não houver andar acima, o sistema avisa.
@@ -37,7 +52,7 @@ para qualquer andar: térreo → 1º, 1º → 2º e assim por diante. Se não ho
 
 - Portas: de giro, de correr, dupla, pivotante. Janelas: de correr, basculante, maxim-ar, porta-janela.
   Escolha o tipo na barra lateral ao usar Porta (D) ou Janela (J), ou troque no painel de propriedades.
-- Catálogo com 58 itens: sala, quarto, cozinha, banheiro, escritório, **lavanderia**, **área externa
+- Catálogo com 80 itens: sala, quarto, cozinha, banheiro, escritório, **lavanderia**, **área externa
   e garagem** (piscina, churrasqueira, árvores, carro…), iluminação e escadas.
 
 ## Roteiro de teste manual
@@ -119,7 +134,8 @@ Pré-dimensionamento de concreto armado com alvenaria de vedação, da fundaçã
    - vigas biapoiadas: momento, cortante, armadura de flexão, estribos, biela, altura x vão;
    - pilares por área de influência (coeficientes de canto/extremidade/interno), γn, armadura, esbeltez,
      seção mínima;
-   - fundação: sapatas pela tensão admissível do solo (com aviso de sobreposição), radier ou estacas;
+   - fundação: sapatas pela tensão admissível do solo, **sapata associada automática** quando pilares
+     vizinhos teriam sapatas sobrepostas, radier ou estacas;
    - paredes do andar de cima sem viga embaixo, pilares sem caminho até a fundação, carga média por m²;
    - vão da escada descontado da laje e metade do peso da escada apoiada nela.
    Pilares só descem quando há parede embaixo; paredes de cima sem parede embaixo ganham **viga de

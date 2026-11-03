@@ -298,6 +298,9 @@ export function deleteSelection(plan: Plan, sel: Selection): void {
     case 'room':
       delete plan.rooms[sel.id];
       break;
+    case 'annotation':
+      if (plan.annotations) delete plan.annotations[sel.id];
+      break;
   }
 }
 

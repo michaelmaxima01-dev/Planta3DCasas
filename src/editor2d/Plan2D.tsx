@@ -15,7 +15,7 @@ import {
   splitWall,
   wallsAtNode,
 } from '../model/ops';
-import type { OpeningKind, SelectionKind } from '../model/types';
+import type { Annotation, FurnitureItem, Opening, OpeningKind, SelectionKind } from '../model/types';
 import { levelBelow } from '../model/building';
 import { beginGesture, endGesture, selectLevel, selectPlan, usePlan } from '../store/planStore';
 import { isStair, stairFootprint, stairRect } from '../model/stairs';
@@ -30,7 +30,10 @@ type Drag =
   | { kind: 'node'; id: string; snap: SnapResult | null }
   | { kind: 'wall'; id: string; start: Vec2; a: Vec2; b: Vec2 }
   | { kind: 'furniture'; id: string; start: Vec2; orig: Vec2; rot: number }
-  | { kind: 'opening'; id: string };
+  | { kind: 'opening'; id: string }
+  | { kind: 'fresize'; id: string; handle: string; orig: FurnitureItem }
+  | { kind: 'oresize'; id: string; end: number; orig: Opening }
+  | { kind: 'annot'; id: string; start: Vec2; orig: Vec2[] };
 
 interface View {
   s: number; // pixels por metro
@@ -80,6 +83,10 @@ export function Plan2D() {
   /** Edição de cota: parede e posição na tela. */
   const [dimEdit, setDimEdit] = useState<{ wallId: string; x: number; y: number; value: string } | null>(null);
   const hoverRef = useRef<Vec2 | null>(null);
+  /** Marcação sendo desenhada e edição de texto. */
+  const [draftAnn, setDraftAnn] = useState<Annotation | null>(null);
+  const [textEdit, setTextEdit] = useState<{ x: number; y: number; p: Vec2; value: string } | null>(null);
+  const annotColor = useUI((s) => s.annotColor);
   const drag = useRef<Drag | null>(null);
   const [dragKind, setDragKind] = useState<Drag['kind'] | null>(null);
   const startDrag = (d: Drag) => {
@@ -263,6 +270,17 @@ export function Plan2D() {
         select({ kind: 'wall', id: hit.id });
         return;
       }
+      // alças de redimensionar/girar do item selecionado
+      if ((hit.kind as string) === 'fhandle' && selection?.kind === 'furniture' && plan.furniture[selection.id]) {
+        beginGesture();
+        startDrag({ kind: 'fresize', id: selection.id, handle: hit.id, orig: { ...plan.furniture[selection.id] } });
+        return;
+      }
+      if ((hit.kind as string) === 'ohandle' && selection?.kind === 'opening' && plan.openings[selection.id]) {
+        beginGesture();
+        startDrag({ kind: 'oresize', id: selection.id, end: Number(hit.id), orig: { ...plan.openings[selection.id] } });
+        return;
+      }
       select(hit);
       if (hit.kind === 'room') return;
       beginGesture();
@@ -274,6 +292,19 @@ export function Plan2D() {
         const f = plan.furniture[hit.id];
         startDrag({ kind: 'furniture', id: hit.id, start: p, orig: { x: f.x, y: f.y }, rot: f.rotation });
       } else if (hit.kind === 'opening') startDrag({ kind: 'opening', id: hit.id });
+      else if (hit.kind === 'annotation' && plan.annotations?.[hit.id]) startDrag({ kind: 'annot', id: hit.id, start: p, orig: plan.annotations[hit.id].pts.map((q) => ({ ...q })) });
+      return;
+    }
+
+    if (tool === 'pencil' || tool === 'arrow' || tool === 'measure') {
+      const q = tool === 'measure' ? snapPoint(plan, p, { pxPerMeter: view.s, disabled: e.altKey }).point : p;
+      setDraftAnn({ id: '', kind: tool === 'pencil' ? 'free' : tool, pts: [q, q], color: annotColor });
+      return;
+    }
+    if (tool === 'text') {
+      e.preventDefault();
+      const r = svgRef.current!.getBoundingClientRect();
+      setTextEdit({ x: e.clientX - r.left, y: e.clientY - r.top, p, value: '' });
       return;
     }
 
@@ -390,6 +421,73 @@ export function Plan2D() {
       });
       return;
     }
+    if (draftAnn) {
+      if (draftAnn.kind === 'free') {
+        const last = draftAnn.pts[draftAnn.pts.length - 1];
+        if (dist(last, p) > 3 / view.s) setDraftAnn({ ...draftAnn, pts: [...draftAnn.pts, p] });
+      } else {
+        let q = draftAnn.kind === 'measure' ? snapPoint(plan, p, { pxPerMeter: view.s, disabled: e.altKey }).point : p;
+        if (e.shiftKey) q = ortho(draftAnn.pts[0], q);
+        setDraftAnn({ ...draftAnn, pts: [draftAnn.pts[0], q] });
+      }
+      return;
+    }
+    if (d?.kind === 'annot') {
+      const dx = p.x - d.start.x;
+      const dy = p.y - d.start.y;
+      update((draft) => {
+        const a = draft.annotations?.[d.id];
+        if (a) a.pts = d.orig.map((q) => ({ x: q.x + dx, y: q.y + dy }));
+      });
+      return;
+    }
+    if (d?.kind === 'fresize') {
+      const o = d.orig;
+      const c = Math.cos(o.rotation);
+      const sn = Math.sin(o.rotation);
+      // ponteiro no sistema local do móvel (x = largura, y = profundidade, frente em +y)
+      const lx = (p.x - o.x) * c + (p.y - o.y) * sn;
+      const ly = -(p.x - o.x) * sn + (p.y - o.y) * c;
+      const toWorld = (u: number, v: number) => ({ x: o.x + u * c - v * sn, y: o.y + u * sn + v * c });
+      update((draft) => {
+        const f = draft.furniture[d.id];
+        if (!f) return;
+        if (d.handle === 'rot') {
+          let a = Math.atan2(p.y - o.y, p.x - o.x) + Math.PI / 2;
+          if (!e.altKey) a = Math.round(a / (Math.PI / 12)) * (Math.PI / 12);
+          f.rotation = a;
+          return;
+        }
+        const snapL = (v: number) => (e.altKey ? v : roundTo(v, 0.05));
+        if (d.handle === 'e' || d.handle === 'w') {
+          const fixed = d.handle === 'e' ? -o.width / 2 : o.width / 2;
+          const w = Math.max(0.1, snapL(Math.abs(lx - fixed)));
+          const mid = fixed + (d.handle === 'e' ? w / 2 : -w / 2);
+          const pos = toWorld(mid, 0);
+          Object.assign(f, { width: w, x: pos.x, y: pos.y });
+        } else {
+          const fixed = d.handle === 's' ? -o.depth / 2 : o.depth / 2;
+          const dd = Math.max(0.1, snapL(Math.abs(ly - fixed)));
+          const mid = fixed + (d.handle === 's' ? dd / 2 : -dd / 2);
+          const pos = toWorld(0, mid);
+          Object.assign(f, { depth: dd, x: pos.x, y: pos.y });
+        }
+      });
+      return;
+    }
+    if (d?.kind === 'oresize') {
+      const g = geoms[d.orig.wallId];
+      if (!g) return;
+      const t = projectOnSegment(p, g.a, g.b).t * g.length;
+      const other = d.orig.offset - d.end * (d.orig.width / 2);
+      const w = Math.max(0.3, Math.min(g.length - 0.2, e.altKey ? Math.abs(t - other) : roundTo(Math.abs(t - other), 0.05)));
+      const off = clampOpeningOffset(g.length, w, other + d.end * (w / 2));
+      update((draft) => {
+        const op = draft.openings[d.id];
+        if (op) Object.assign(op, { width: w, offset: off });
+      });
+      return;
+    }
     if (d?.kind === 'opening') {
       const op = plan.openings[d.id];
       const g = op && geoms[op.wallId];
@@ -455,6 +553,19 @@ export function Plan2D() {
   }
 
   const onPointerUp = () => {
+    if (draftAnn) {
+      const a = draftAnn;
+      setDraftAnn(null);
+      const len = a.pts.reduce((acc, q, i) => (i ? acc + dist(a.pts[i - 1], q) : 0), 0);
+      if (len > 4 / view.s) {
+        const id = `a_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+        update((dd) => {
+          dd.annotations ??= {};
+          dd.annotations[id] = { ...a, id };
+        });
+      }
+      return;
+    }
     const d = drag.current;
     drag.current = null;
     setDragKind(null);
@@ -689,6 +800,11 @@ export function Plan2D() {
             })}
         </g>
 
+        {/* marcações (desenho livre, setas, textos e medidas) */}
+        {[...Object.values(plan.annotations ?? {}), ...(draftAnn ? [draftAnn] : [])].map((a) => (
+          <AnnotationShape key={a.id || 'draft'} a={a} px={px} selected={selection?.kind === 'annotation' && selection.id === a.id} />
+        ))}
+
         {/* nome e área dos cômodos */}
         <g pointerEvents="none">
           {rooms.map((r) => (
@@ -718,6 +834,46 @@ export function Plan2D() {
               vectorEffect="non-scaling-stroke"
             />
           ))}
+
+        {/* alças do item selecionado */}
+        {tool === 'select' && selection?.kind === 'furniture' && plan.furniture[selection.id] && (() => {
+          const f = plan.furniture[selection.id];
+          const c = Math.cos(f.rotation);
+          const sn = Math.sin(f.rotation);
+          const W = (u: number, v: number) => ({ x: f.x + u * c - v * sn, y: f.y + u * sn + v * c });
+          const hs: [string, Vec2][] = [
+            ['e', W(f.width / 2, 0)],
+            ['w', W(-f.width / 2, 0)],
+            ['s', W(0, f.depth / 2)],
+            ['n', W(0, -f.depth / 2)],
+          ];
+          const rot = W(0, -f.depth / 2 - px(26));
+          const top = W(0, -f.depth / 2);
+          return (
+            <g>
+              <line x1={top.x} y1={top.y} x2={rot.x} y2={rot.y} stroke={ACCENT} strokeWidth={1} vectorEffect="non-scaling-stroke" pointerEvents="none" />
+              {hs.map(([k, q]) => (
+                <rect key={k} data-kind="fhandle" data-id={k} x={q.x - px(5)} y={q.y - px(5)} width={px(10)} height={px(10)} fill="#ffffff" stroke={ACCENT} strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="handle" />
+              ))}
+              <circle data-kind="fhandle" data-id="rot" cx={rot.x} cy={rot.y} r={px(6)} fill={ACCENT} stroke="#ffffff" strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="handle rot" />
+              <text x={f.x} y={f.y + f.depth / 2 + px(16)} fontSize={px(10)} textAnchor="middle" fill={ACCENT} className="dim-text" pointerEvents="none">
+                {fmtNumber(f.width)} × {fmtNumber(f.depth)} m
+              </text>
+            </g>
+          );
+        })()}
+        {tool === 'select' && selection?.kind === 'opening' && plan.openings[selection.id] && geoms[plan.openings[selection.id].wallId] && (() => {
+          const op = plan.openings[selection.id];
+          const g = geoms[op.wallId];
+          return (
+            <g>
+              {[-1, 1].map((end) => {
+                const q = add(g.a, mul(g.dir, op.offset + (end * op.width) / 2));
+                return <rect key={end} data-kind="ohandle" data-id={end} x={q.x - px(5)} y={q.y - px(5)} width={px(10)} height={px(10)} fill="#ffffff" stroke={ACCENT} strokeWidth={1.5} vectorEffect="non-scaling-stroke" className="handle" />;
+              })}
+            </g>
+          );
+        })()}
 
         {openingPreview}
         {furniturePreview}
@@ -835,6 +991,32 @@ export function Plan2D() {
       </label>
     )}
 
+    {textEdit && (
+      <label className="dim-edit" style={{ left: textEdit.x, top: textEdit.y }}>
+        <span>Nota</span>
+        <input
+          autoFocus
+          style={{ width: 180, textAlign: 'left' }}
+          value={textEdit.value}
+          placeholder="Digite e Enter"
+          onChange={(e) => setTextEdit({ ...textEdit, value: e.target.value })}
+          onBlur={() => setTextEdit(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && textEdit.value.trim()) {
+              const id = `a_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+              const t = textEdit;
+              update((dd) => {
+                dd.annotations ??= {};
+                dd.annotations[id] = { id, kind: 'text', pts: [t.p], text: t.value.trim(), color: annotColor, size: Math.max(0.15, 14 / view.s) };
+              });
+              setTextEdit(null);
+            }
+            if (e.key === 'Escape') setTextEdit(null);
+          }}
+        />
+      </label>
+    )}
+
     {emptyLevel && !drawingNow && tool !== 'wall' && tool !== 'room' && <StartCard />}
     </>
   );
@@ -905,6 +1087,54 @@ function ScaleBar({ s, h }: { s: number; h: number }) {
       <text x={w + 6} y={6} fontSize={11} fill="#2e343b">
         {meters >= 1 ? `${meters} m` : `${meters * 100} cm`}
       </text>
+    </g>
+  );
+}
+
+/** Desenha uma marcação; a área de clique é mais larga que o traço. */
+function AnnotationShape({ a, px, selected }: { a: Annotation; px: (n: number) => number; selected: boolean }) {
+  const color = a.color;
+  const sw = selected ? 3.5 : 2.5;
+  const points = a.pts.map((q) => `${q.x},${q.y}`).join(' ');
+  const common = { 'data-kind': a.id ? 'annotation' : undefined, 'data-id': a.id || undefined };
+  if (a.kind === 'text') {
+    const q = a.pts[0];
+    return (
+      <text {...common} x={q.x} y={q.y} fontSize={a.size ?? 0.3} fill={color} fontWeight={700} className="dim-text annot-text" style={{ textDecoration: selected ? 'underline' : undefined }}>
+        {a.text}
+      </text>
+    );
+  }
+  const [p0, p1] = [a.pts[0], a.pts[a.pts.length - 1]];
+  const ang = Math.atan2(p1.y - p0.y, p1.x - p0.x);
+  const head = px(12);
+  return (
+    <g {...common}>
+      <polyline points={points} fill="none" stroke="rgba(0,0,0,0)" strokeWidth={14} vectorEffect="non-scaling-stroke" />
+      <polyline points={points} fill="none" stroke={color} strokeWidth={sw} strokeLinecap="round" strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      {a.kind === 'arrow' && (
+        <polygon
+          points={[p1, { x: p1.x - head * Math.cos(ang - 0.4), y: p1.y - head * Math.sin(ang - 0.4) }, { x: p1.x - head * Math.cos(ang + 0.4), y: p1.y - head * Math.sin(ang + 0.4) }].map((q) => `${q.x},${q.y}`).join(' ')}
+          fill={color}
+        />
+      )}
+      {a.kind === 'measure' && (
+        <>
+          {[p0, p1].map((q, i) => (
+            <line key={i} x1={q.x - px(6) * Math.cos(ang + Math.PI / 4)} y1={q.y - px(6) * Math.sin(ang + Math.PI / 4)} x2={q.x + px(6) * Math.cos(ang + Math.PI / 4)} y2={q.y + px(6) * Math.sin(ang + Math.PI / 4)} stroke={color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+          ))}
+          <text
+            transform={`translate(${(p0.x + p1.x) / 2} ${(p0.y + p1.y) / 2}) rotate(${((ang > Math.PI / 2 || ang <= -Math.PI / 2 ? ang + Math.PI : ang) * 180) / Math.PI}) translate(0 ${-px(7)})`}
+            fontSize={px(12)}
+            textAnchor="middle"
+            fill={color}
+            fontWeight={700}
+            className="dim-text"
+          >
+            {fmtMeters(Math.hypot(p1.x - p0.x, p1.y - p0.y))}
+          </text>
+        </>
+      )}
     </g>
   );
 }
