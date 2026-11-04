@@ -20,6 +20,8 @@ interface UIState {
   showAllLevels: boolean;
   /** Mostra o telhado no 3D. */
   showRoof: boolean;
+  /** Mostra o forro no 3D. */
+  showCeiling: boolean;
   /** Aba principal: arquitetura ou estrutura. */
   mode: 'arch' | 'struct';
   /** Pinta a estrutura no 3D pela verificação (verde/amarelo/vermelho). */
@@ -50,7 +52,7 @@ interface UIState {
   pickCatalog: (id: string) => void;
   setWallDefaults: (p: { thickness?: number; height?: number }) => void;
   toggleCutWalls: () => void;
-  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'annotColor' | 'toast' | 'doorStyle' | 'windowStyle' | 'roomPreset' | 'fenceType'>>) => void;
+  set: (p: Partial<Pick<UIState, 'showAllLevels' | 'showRoof' | 'showCeiling' | 'mode' | 'colorByStatus' | 'ghostWalls' | 'foundationView' | 'structTool' | 'addingLevel' | 'annotColor' | 'toast' | 'doorStyle' | 'windowStyle' | 'roomPreset' | 'fenceType'>>) => void;
   requestFit: () => void;
 }
 
@@ -64,6 +66,7 @@ export const useUI = create<UIState>()((set) => ({
   cutWalls: false,
   showAllLevels: false,
   showRoof: true,
+  showCeiling: true,
   mode: 'arch',
   colorByStatus: true,
   ghostWalls: true,

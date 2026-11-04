@@ -209,3 +209,18 @@ O `.htaccess` incluso ativa compressão e cache. Para forçar HTTPS, descomente 
 
 - **PDF**: logo após a capa, 8 perspectivas ao redor da casa (a cada 45°, com mini-mapa de onde a foto foi tirada), 4 fachadas ortogonais (frontal, posterior e laterais, sem os muros na frente) e 2 vistas aéreas (perspectiva e cobertura com o terreno inteiro). A "frente" segue o lado da rua do terreno.
 - **Visual**: barra superior com ícones e grupos, botões com hover e foco, painéis em cartões, campos e seletores redesenhados, busca com lupa. Em telas menores os botões secundários ficam só com ícone (dica ao passar o mouse).
+
+## v9.0: usuários e licenças, orçamento, forro, cores e mais
+
+- **Usuários e licenças** (`public/api/auth.php`, PHP 7.4+): só o proprietário (`admin`) vê o botão **Usuários** e precisa confirmar a senha para abrir o painel (desbloqueio de 20 min). Cria, renova, inativa, troca senha e exclui acessos. Licenças: 1 dia, 1 semana, 1 mês, trimestral, semestral, anual e vitalícia. Aviso automático a 7 dias do vencimento e bloqueio quando vence ou é inativado (checagem a cada 20 min). Senhas com bcrypt, bloqueio de 15 min após 8 tentativas erradas. Contas ficam em `api/data/users.json` (pasta bloqueada por `.htaccess`).
+- **Projetos por usuário**: cada login tem o seu projeto salvo no próprio navegador; Salvar/Abrir (.json) leva para outro computador.
+- **Orçamento**: preços de materiais, mão de obra por etapa (% dos materiais, R$/m² ou valor fechado), outros custos, imprevistos e BDI; perfis salvos por usuário; folhas no PDF, PDF próprio e planilha CSV (Excel).
+- **Forro** por andar (gesso, drywall, PVC, madeira, fibra mineral, laje aparente) com altura, botão para ocultar no 3D e quantitativo.
+- **Telhado**: tipos embutido (platibanda) e borboleta; sustentações tesoura metálica e terças apoiadas nas paredes; botão para ocultar o telhado.
+- **Cores**: paleta de paredes, teto/lajes, telhado e piso; cor por parede.
+- **Escadas vazadas** (reta, L, U) e **curva em meia-lua**, com espaço livre embaixo.
+- **Novo projeto: Terreno + casa + quintal** (ex.: terreno 10 × 35 com casa 8 × 12, recuo, muro e gramado).
+- **PDF**: escala automática com intermediárias (1:60, 1:80…), norte, escala gráfica, legenda e lajes coloridas nas fôrmas.
+
+### Atualizar o site sem perder os usuários
+Ao subir uma versão nova na Hostinger, **não apague a pasta `api/data`** (é onde ficam as contas). Apague só `assets`, `index.html`, `favicon.svg`, `icons.svg` e `api/auth.php`, envie o zip e extraia substituindo.

@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useStore } from 'zustand';
 import { buildExampleBuilding, createBuilding, migrate } from '../model/building';
 import type { Building } from '../model/types';
@@ -8,6 +9,8 @@ import { ExportDialog } from './ExportDialog';
 import { APP_COMMIT, APP_VERSION } from '../version';
 import { logout } from './Login';
 import { Icon } from './icons';
+import { UsersPanel } from './UsersPanel';
+import { getSession } from '../auth/session';
 
 export function TopBar() {
   const canUndo = useStore(usePlan.temporal, (s) => s.pastStates.length > 0);
@@ -19,9 +22,14 @@ export function TopBar() {
   const requestFit = useUI((s) => s.requestFit);
   const fileRef = useRef<HTMLInputElement>(null);
   const [exporting, setExporting] = useState(false);
+  const [usersOpen, setUsersOpen] = useState(false);
+  const session = getSession();
   const mode = useUI((s) => s.mode);
   const setUI = useUI((s) => s.set);
   const showAllLevels = useUI((s) => s.showAllLevels);
+  const showRoof = useUI((s) => s.showRoof);
+  const showCeiling = useUI((s) => s.showCeiling);
+  const hasCeiling = usePlan((s) => s.building.levels.some((l) => !!l.ceiling));
 
   const replace = (b: Building) => {
     usePlan.getState().setBuilding(b);
@@ -97,15 +105,32 @@ export function TopBar() {
         <button className={showAllLevels ? 'active' : ''} onClick={() => setUI({ showAllLevels: !showAllLevels })} title="No 3D, mostra também os pavimentos acima do que está sendo editado">
           <Icon name="layers" /> <span className="lbl">Ver andares de cima</span>
         </button>
+        <button className={showRoof ? 'active' : ''} onClick={() => setUI({ showRoof: !showRoof })} title={showRoof ? 'Ocultar o telhado (ver paredes e cômodos por cima)' : 'Mostrar o telhado'}>
+          <Icon name="roof" /> <span className="lbl">Telhado</span>
+        </button>
+        {hasCeiling && (
+          <button className={showCeiling ? 'active' : ''} onClick={() => setUI({ showCeiling: !showCeiling })} title={showCeiling ? 'Ocultar o forro' : 'Mostrar o forro'}>
+            <Icon name="ceiling" /> <span className="lbl">Forro</span>
+          </button>
+        )}
         <button className={cutWalls ? 'active' : ''} onClick={toggleCutWalls} title="Corta as paredes a 1,2 m no 3D">
           <Icon name="cut" /> <span className="lbl">Paredes baixas</span>
         </button>
         <button onClick={requestFit} title="Enquadrar o projeto nas vistas"><Icon name="fit" /> <span className="lbl">Enquadrar</span></button>
       </div>
       <div className="group group-end">
+        <span className="user-chip" title={session ? `${session.name} (${session.user})${session.expires ? ` • licença até ${new Date(session.expires).toLocaleDateString('pt-BR')}` : ''}` : ''}>
+          <Icon name="user" /> <span className="lbl">{session?.name ?? 'Usuário'}</span>
+        </span>
+        {session?.role === 'owner' && (
+          <button onClick={() => setUsersOpen(true)} title="Usuários e licenças (somente o proprietário)">
+            <Icon name="users" /> <span className="lbl">Usuários</span>
+          </button>
+        )}
         <button onClick={() => confirm('Sair do sistema? Salve o projeto antes, se precisar.') && logout()} title="Sair do sistema" className="logout-btn"><Icon name="power" /> <span className="lbl">Sair</span></button>
       </div>
-      {exporting && <ExportDialog onClose={() => setExporting(false)} />}
+      {exporting && createPortal(<ExportDialog onClose={() => setExporting(false)} />, document.body)}
+      {usersOpen && createPortal(<UsersPanel onClose={() => setUsersOpen(false)} />, document.body)}
     </header>
   );
 }

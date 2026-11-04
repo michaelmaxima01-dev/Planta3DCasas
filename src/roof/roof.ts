@@ -9,7 +9,7 @@ import { computeWallGeometry } from '../geometry/walls';
 import type { Building } from '../model/types';
 import { ROOFS, type RoofKind, roofTile } from '../structure/types';
 
-export type RoofType = 'duas_aguas' | 'quatro_aguas' | 'uma_agua' | 'plano';
+export type RoofType = 'duas_aguas' | 'quatro_aguas' | 'uma_agua' | 'embutido' | 'borboleta' | 'plano';
 
 export interface RoofModel {
   type: RoofType;
@@ -23,16 +23,22 @@ export interface RoofModel {
   support?: RoofSupport;
 }
 
-export type RoofSupport = 'laje' | 'tesoura';
+export type RoofSupport = 'laje' | 'tesoura' | 'tesoura_metalica' | 'paredes';
 export const ROOF_SUPPORTS: { key: RoofSupport; name: string; text: string }[] = [
   { key: 'laje', name: 'Sobre a laje (pontaletes)', text: 'Laje de concreto no teto do último andar; o madeiramento apoia em pontaletes sobre ela.' },
   { key: 'tesoura', name: 'Tesouras de madeira (forro)', text: 'Sem laje no último andar: tesouras a cada 3 m vencem o vão e descarregam nas vigas de respaldo das paredes externas.' },
+  { key: 'tesoura_metalica', name: 'Tesouras metálicas (perfis U)', text: 'Tesouras e terças em aço formado a frio (NBR 14762), a cada 4 m; vencem vãos maiores (até ~20 m) e combinam com telha metálica ou termoacústica.' },
+  { key: 'paredes', name: 'Terças apoiadas nas paredes (oitões)', text: 'Sem tesoura: as terças apoiam direto nos oitões e nas paredes internas (vãos de até ~4 m). Solução econômica para casas térreas com forro.' },
 ];
+/** Sustentação sem laje de cobertura (carga vai para as paredes/vigas de respaldo). */
+export const isLightSupport = (s: RoofSupport | undefined) => (s ?? 'laje') !== 'laje';
 
 export const ROOF_TYPES: { key: RoofType; name: string }[] = [
   { key: 'duas_aguas', name: 'Duas águas' },
   { key: 'quatro_aguas', name: 'Quatro águas' },
   { key: 'uma_agua', name: 'Uma água' },
+  { key: 'embutido', name: 'Embutido com platibanda' },
+  { key: 'borboleta', name: 'Borboleta (calha central)' },
   { key: 'plano', name: 'Laje plana (sem telhado)' },
 ];
 
@@ -81,7 +87,7 @@ export function roofGeometry(b: Building): RoofGeometry | null {
     maxX: Math.max(...polys.map((p) => p.x)),
     maxY: Math.max(...polys.map((p) => p.y)),
   };
-  const o = roof.type === 'plano' ? 0 : roof.overhang;
+  const o = roof.type === 'plano' || roof.type === 'embutido' ? 0 : roof.overhang;
   const e = { minX: walls.minX - o, minY: walls.minY - o, maxX: walls.maxX + o, maxY: walls.maxY + o };
   const base = top.elevation + top.height;
   const W = e.maxX - e.minX;
@@ -114,6 +120,30 @@ export function roofGeometry(b: Building): RoofGeometry | null {
     gables.push([toXY(wu0, wv0, base), toXY(wu0, wv1, base), toXY(wu0, wv1, hw(wv1)), toXY(wu0, wv0, hw(wv0))]);
     gables.push([toXY(wu1, wv0, base), toXY(wu1, wv1, base), toXY(wu1, wv1, hw(wv1)), toXY(wu1, wv0, hw(wv0))]);
     arrows.push([toXY((u0 + u1) / 2, v0 + S * 0.2, base), toXY((u0 + u1) / 2, v1 - S * 0.2, base)]);
+  } else if (roof.type === 'embutido') {
+    // uma água escondida atrás da platibanda (mureta acima do telhado em todo o contorno)
+    const h = i * S;
+    ridgeHeight = h;
+    faces.push([toXY(u0, v0, base + h), toXY(u1, v0, base + h), toXY(u1, v1, base), toXY(u0, v1, base)]);
+    const top = base + h + 0.3;
+    const ring = [toXY(wu0, wv0, 0), toXY(wu1, wv0, 0), toXY(wu1, wv1, 0), toXY(wu0, wv1, 0)];
+    for (let k = 0; k < 4; k++) {
+      const a = ring[k];
+      const c = ring[(k + 1) % 4];
+      gables.push([[a[0], a[1], base], [c[0], c[1], base], [c[0], c[1], top], [a[0], a[1], top]]);
+    }
+    arrows.push([toXY((u0 + u1) / 2, v0 + S * 0.2, base), toXY((u0 + u1) / 2, v1 - S * 0.2, base)]);
+  } else if (roof.type === 'borboleta') {
+    // duas águas caindo para o meio (calha central)
+    const h = (i * S) / 2;
+    ridgeHeight = h;
+    faces.push([toXY(u0, v0, base + h), toXY(u1, v0, base + h), toXY(u1, vm, base), toXY(u0, vm, base)]);
+    faces.push([toXY(u0, vm, base), toXY(u1, vm, base), toXY(u1, v1, base + h), toXY(u0, v1, base + h)]);
+    const hw = (v: number) => base + i * Math.abs(v - vm);
+    for (const u of [wu0, wu1]) gables.push([toXY(u, wv0, base), toXY(u, wv1, base), toXY(u, wv1, hw(wv1)), toXY(u, vm, base), toXY(u, wv0, hw(wv0))]);
+    ridges.push([toXY(u0, vm, base), toXY(u1, vm, base)]);
+    const um = (u0 + u1) / 2;
+    arrows.push([toXY(um, v0 + S * 0.12, base), toXY(um, vm - S * 0.1, base)], [toXY(um, v1 - S * 0.12, base), toXY(um, vm + S * 0.1, base)]);
   } else if (roof.type === 'duas_aguas') {
     const h = (i * S) / 2;
     ridgeHeight = h;
@@ -265,8 +295,9 @@ export function analyzeRoof(b: Building, material: RoofKind, load: number, live:
   const span = ridgeX ? W.maxY - W.minY : W.maxX - W.minX; // vão das tesouras
   const ridgeLen = g.ridges.reduce((s, [a, c]) => s + Math.hypot(c[0] - a[0], c[1] - a[1], c[2] - a[2]), 0);
   const e = g.eave;
+  const single = roof.type === 'uma_agua' || roof.type === 'embutido';
   const eaveLen = roof.type === 'quatro_aguas' ? 2 * (e.maxX - e.minX + e.maxY - e.minY) : 2 * (ridgeX ? e.maxX - e.minX : e.maxY - e.minY);
-  const rake = roof.type === 'quatro_aguas' ? 0 : (roof.type === 'uma_agua' ? 2 : 4) * ((ridgeX ? e.maxY - e.minY : e.maxX - e.minX) / (roof.type === 'uma_agua' ? 1 : 2)) / Math.cos(g.angle);
+  const rake = roof.type === 'quatro_aguas' || roof.type === 'embutido' ? 0 : (single ? 2 : 4) * ((ridgeX ? e.maxY - e.minY : e.maxX - e.minX) / (single ? 1 : 2)) / Math.cos(g.angle);
 
   // ----- cobertura -----
   if (tile.family === 'telha') {
@@ -288,7 +319,9 @@ export function analyzeRoof(b: Building, material: RoofKind, load: number, live:
   // ----- terças -----
   const terSpacing = tile.family === 'chapa' ? (tile.key === 'fibrocimento' ? 1.15 : 1.5) : 1.5;
   const terLen = A / terSpacing;
-  el('Terças', '6 × 16 cm', `${nf(terSpacing)} m`, terLen, 'm', terLen * 0.06 * 0.16);
+  const steel = support === 'tesoura_metalica';
+  if (steel) el('Terças metálicas (perfil U 100 × 50 × 2,25)', 'aço', `${nf(terSpacing)} m`, terLen, 'm');
+  else el('Terças', '6 × 16 cm', `${nf(terSpacing)} m`, terLen, 'm', terLen * 0.06 * 0.16);
 
   // ----- sustentação -----
   const total = (load + live) * g.projectedArea;
@@ -298,19 +331,39 @@ export function analyzeRoof(b: Building, material: RoofKind, load: number, live:
   if (support === 'laje') {
     el('Pontaletes (sobre a laje)', '7,5 × 7,5 cm', '2,00 m sob as terças', terLen / 2, 'un', (terLen / 2) * 0.075 * 0.075 * Math.max(0.3, g.ridgeHeight / 2));
     notes.push('Peso do telhado descarrega na laje de cobertura por meio dos pontaletes.');
+  } else if (support === 'paredes') {
+    const count = ceil(along / 3.5) + 1;
+    purlinSpan = along / (count - 1);
+    el('Oitões e paredes de apoio das terças (alvenaria até o telhado)', '-', `a cada ${nf(purlinSpan)} m`, count, 'un');
+    el('Cintas de amarração no topo das paredes de apoio', '14 × 20 cm', '-', count * span, 'm');
+    notes.push(`Terças apoiadas direto nas paredes a cada ${nf(purlinSpan)} m: confira se há paredes internas transversais nesses alinhamentos (oitões).`);
+    if (purlinSpan > 4.2) {
+      worse('warn');
+      notes.push('Distância entre paredes de apoio acima de ~4 m: terça de madeira fica no limite; prefira tesouras.');
+    }
+    const sides: ('minX' | 'maxX' | 'minY' | 'maxY')[] = ridgeX ? ['minX', 'maxX'] : ['minY', 'maxY'];
+    const sideLen = (sd: string) => (sd === 'minX' || sd === 'maxX' ? W.maxY - W.minY : W.maxX - W.minX);
+    const perim = sides.reduce((s2, sd) => s2 + sideLen(sd), 0);
+    for (const sd of sides) eaveLoads.push({ side: sd, length: sideLen(sd), q: total / perim });
   } else {
-    const spacing = 3.0;
+    const spacing = steel ? 4.0 : 3.0;
     const count = ceil(along / spacing) + 1;
     purlinSpan = along / (count - 1);
-    const hWalls = roof.type === 'uma_agua' ? (roof.slope / 100) * span : ((roof.slope / 100) * span) / 2;
-    const top = (roof.type === 'uma_agua' ? Math.hypot(span, hWalls) : 2 * Math.hypot(span / 2, hWalls)) + 2 * roof.overhang;
+    const hWalls = single ? (roof.slope / 100) * span : ((roof.slope / 100) * span) / 2;
+    const top = (single ? Math.hypot(span, hWalls) : 2 * Math.hypot(span / 2, hWalls)) + 2 * roof.overhang;
     const memberLen = top + span + hWalls + 1.2 * span; // banzos + pendural + diagonais/montantes
     truss = { span, spacing: purlinSpan, count, heightAtWalls: hWalls };
-    el(roof.type === 'uma_agua' ? 'Meias-tesouras de madeira' : 'Tesouras de madeira (Howe)', 'banzos 6 × 16 cm', `${nf(purlinSpan)} m`, count, 'un', count * memberLen * 0.06 * 0.16);
-    el('Forro (PVC ou gesso) do último andar', '-', '-', (W.maxX - W.minX) * (W.maxY - W.minY), 'm²');
-    if (span > 12) {
+    if (steel) {
+      const kg = count * memberLen * 3.6 + terLen * 4.2;
+      el(single ? 'Meias-tesouras metálicas (perfil U enrijecido)' : 'Tesouras metálicas (perfil U enrijecido)', 'U 100 × 50 × 2,25', `${nf(purlinSpan)} m`, count, 'un');
+      el('Aço formado a frio (tesouras e terças)', '-', '≈ 3,6 kg/m de banzo', kg, 'kg');
+      el('Fundo e pintura anticorrosiva', '-', '-', kg / 40, 'L');
+      notes.push('Estrutura metálica: dimensionar perfis e ligações conforme NBR 14762 / NBR 8800.');
+    } else el(single ? 'Meias-tesouras de madeira' : 'Tesouras de madeira (Howe)', 'banzos 6 × 16 cm', `${nf(purlinSpan)} m`, count, 'un', count * memberLen * 0.06 * 0.16);
+    if (!b.levels[b.levels.length - 1].ceiling) el('Forro (PVC ou gesso) do último andar', '-', '-', (W.maxX - W.minX) * (W.maxY - W.minY), 'm²');
+    if (span > (steel ? 20 : 12)) {
       worse('warn');
-      notes.push(`Vão de ${nf(span)} m acima do usual para tesoura de madeira (até ~12 m): considerar tesoura metálica ou apoio intermediário.`);
+      notes.push(steel ? `Vão de ${nf(span)} m acima do usual para tesoura metálica leve (até ~20 m): prever apoio intermediário.` : `Vão de ${nf(span)} m acima do usual para tesoura de madeira (até ~12 m): considerar tesoura metálica ou apoio intermediário.`);
     }
     // carga das tesouras nas paredes de beiral (vigas de respaldo)
     const sides: ('minX' | 'maxX' | 'minY' | 'maxY')[] = roof.type === 'quatro_aguas' ? ['minX', 'maxX', 'minY', 'maxY'] : ridgeX ? ['minY', 'maxY'] : ['minX', 'maxX'];
@@ -321,7 +374,12 @@ export function analyzeRoof(b: Building, material: RoofKind, load: number, live:
   }
 
   // ----- calhas, rufos e fixações -----
-  el('Calhas (beiral)', 'chapa galvanizada', '-', eaveLen, 'm');
+  if (roof.type === 'embutido') {
+    const perimW = 2 * (W.maxX - W.minX + W.maxY - W.minY);
+    el('Platibanda (alvenaria acima da laje)', '-', `altura ≈ ${nf(g.ridgeHeight + 0.3)} m`, perimW * (g.ridgeHeight + 0.3), 'm²');
+    el('Calha de platibanda + rufos', 'chapa galvanizada', '-', (ridgeX ? W.maxX - W.minX : W.maxY - W.minY) + perimW, 'm');
+  } else if (roof.type === 'borboleta') el('Calha central (água furtada)', 'chapa galvanizada nº 24', '-', ridgeX ? e.maxX - e.minX : e.maxY - e.minY, 'm');
+  el('Calhas (beiral)', 'chapa galvanizada', '-', roof.type === 'embutido' || roof.type === 'borboleta' ? 0 : eaveLen, 'm');
   el('Condutores Ø100', '-', '1 a cada 8 m de calha', Math.max(2, ceil(eaveLen / 8)), 'un');
   if (rake > 0) el('Rufos / testeiras (oitões)', '-', '-', rake, 'm');
   el('Pregos e parafusos', '-', '≈ 0,15 kg/m²', A * 0.15, 'kg');
@@ -345,14 +403,16 @@ export function analyzeRoof(b: Building, material: RoofKind, load: number, live:
   const checks: BeamCheck[] = [];
   const pp = pick('Terça', [[6, 16], [8, 16], [6, 20], [8, 20], [10, 20]], purlinSpan, (load + live) * terSpacing + 0.06);
   const purlin = pp.c;
-  checks.push(purlin);
-  setSection('Terças', 6, 16, pp.b, pp.h);
+  if (!steel) {
+    checks.push(purlin);
+    setSection('Terças', 6, 16, pp.b, pp.h);
+  }
   if (tile.family !== 'chapa') {
     const cp = pick('Caibro', [[5, 6], [5, 7], [6, 8], [6, 12]], terSpacing / Math.cos(g.angle), (load + live) * 0.5 + 0.02);
     checks.push(cp.c);
     setSection('Caibros', 5, 6, cp.b, cp.h);
   }
-  if (truss) {
+  if (truss && !steel) {
     const bp = pick('Banzo superior da tesoura', [[6, 16], [8, 16], [6, 20], [8, 20]], Math.min(2.5, truss.span / 4 / Math.cos(g.angle)), (load + live) * truss.spacing + 0.06);
     checks.push(bp.c);
     const te = elements.find((x) => x.name.startsWith('Tesouras') || x.name.startsWith('Meias-tesouras'));
@@ -378,7 +438,8 @@ export function roofTimber(b: Building): { purlins: [P3, P3][]; posts: { x: numb
   const roof = b.roof ?? defaultRoof();
   const g = roofGeometry(b);
   const out = { purlins: [] as [P3, P3][], posts: [] as { x: number; y: number; z0: number; z1: number }[], members: [] as [P3, P3][] };
-  const trussMode = (roof.support ?? 'laje') === 'tesoura';
+  const trussMode = roof.support === 'tesoura' || roof.support === 'tesoura_metalica';
+  const wallMode = roof.support === 'paredes';
   if (!g || roof.type === 'plano') return out;
   const i = roof.slope / 100;
   const e = g.eave;
@@ -390,9 +451,10 @@ export function roofTimber(b: Building): { purlins: [P3, P3][]; posts: { x: numb
   const S = v1 - v0;
   const vm = (v0 + v1) / 2;
   const spacing = 1.5 * Math.cos(g.angle);
-  const zAt = (v: number) => (roof.type === 'uma_agua' ? g.base + i * (v1 - v) : g.base + i * (S / 2 - Math.abs(v - vm))) - 0.1;
+  const single = roof.type === 'uma_agua' || roof.type === 'embutido';
+  const zAt = (v: number) => (single ? g.base + i * (v1 - v) : roof.type === 'borboleta' ? g.base + i * Math.abs(v - vm) : g.base + i * (S / 2 - Math.abs(v - vm))) - 0.1;
   const lines: number[] = [];
-  if (roof.type === 'uma_agua') {
+  if (single) {
     for (let v = wv1 - 0.1; v > wv0; v -= spacing) lines.push(v);
     lines.push(wv0 + 0.1);
   } else {
@@ -412,20 +474,20 @@ export function roofTimber(b: Building): { purlins: [P3, P3][]; posts: { x: numb
     out.purlins.push([toXY(a, v, z), toXY(c, v, z)]);
     for (let u = a + 0.3; u <= c - 0.3 + 1e-6; u += 2) {
       const [x, y] = toXY(u, v, 0);
-      if (!trussMode) out.posts.push({ x, y, z0: g.base, z1: z - 0.08 });
+      if (!trussMode && !wallMode) out.posts.push({ x, y, z0: g.base, z1: z - 0.08 });
     }
   }
   // tesouras: banzo inferior, banzos superiores, pendural e diagonais
-  if (trussMode) {
+  if (trussMode && roof.type !== 'borboleta') {
     const along = wu1 - wu0;
-    const count = Math.ceil(along / 3.0 - 1e-9) + 1;
+    const count = Math.ceil(along / (roof.support === 'tesoura_metalica' ? 4.0 : 3.0) - 1e-9) + 1;
     for (let k = 0; k < count; k++) {
       const u = wu0 + 0.1 + ((along - 0.2) * k) / (count - 1);
       const z = (v: number) => zAt(v) - 0.12;
       const A = toXY(u, wv0, g.base);
       const B = toXY(u, wv1, g.base);
       out.members.push([A, B]);
-      if (roof.type === 'uma_agua') {
+      if (single) {
         const top0 = toXY(u, wv0, z(wv0));
         const top1 = toXY(u, wv1, z(wv1));
         out.members.push([top0, top1], [A, top0]);

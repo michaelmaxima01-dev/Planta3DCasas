@@ -303,7 +303,7 @@ function formSheet(doc: Doc, b: Building, r: StructureResult, levelKey: string, 
   const geoms = Object.values(computeWallGeometry(plan));
   const bb = boundsOf(geoms.flatMap((g) => g.polygon));
   if (!bb) return;
-  const box = { x: a.x, y: a.y + 10, w: a.w, h: a.h - 10 };
+  const box = { x: a.x, y: a.y + 10, w: a.w, h: a.h - 22 };
   const scale = pickScale(bb.maxX - bb.minX + 2, bb.maxY - bb.minY + 2, box);
   doc.setSheetScale(`1:${scale}`);
   doc.text(`${title.toUpperCase()}  -  ESC. 1:${scale}`, a.x, a.y + 2, 3, { bold: true });
@@ -340,6 +340,8 @@ function formSheet(doc: Doc, b: Building, r: StructureResult, levelKey: string, 
   };
 
   for (const g of geoms) poly(g.polygon, '#e9ecef', '#ced4da', 0.1);
+  const TINTS = ['#fff4cc', '#e3f2ff', '#e8f7e4', '#fde8ef', '#efe7ff', '#fff0e0'];
+  if (levelKey !== BALDRAME) r.slabs.filter((x) => x.levelId === levelKey).forEach((sl, i) => poly(sl.polygon, TINTS[i % TINTS.length], '#c9a227', 0.15, true));
   if (levelKey !== BALDRAME) {
     for (const sl of r.slabs.filter((x) => x.levelId === levelKey)) {
       const c = sl.polygon.reduce((acc, q) => ({ x: acc.x + q.x / sl.polygon.length, y: acc.y + q.y / sl.polygon.length }), { x: 0, y: 0 });
@@ -371,6 +373,30 @@ function formSheet(doc: Doc, b: Building, r: StructureResult, levelKey: string, 
   for (const pl of r.pillars.filter((x) => x.levelId === pillarLevel)) {
     poly(rect(pl.p, pl.h / 100, pl.b / 100, pl.rotation), pl.status === 'ok' ? '#343a40' : ST_COLOR[pl.status], '#212529', 0.15);
     const m = M(pl.p);
-    doc.text(`${pl.code} ${pl.b}/${pl.h}`, m.x + 2, m.y - 2.5, 1.9, { bold: true });
+    const label = `${pl.code} ${pl.b}/${pl.h}`;
+    p.setFont('helvetica', 'bold');
+    p.setFontSize(1.9 * 2.835);
+    const tw = p.getTextWidth(label);
+    p.setFillColor('#ffffff');
+    p.rect(m.x + 1.6, m.y - 4.6, tw + 0.8, 2.8, 'F');
+    doc.text(label, m.x + 2, m.y - 2.5, 1.9, { bold: true });
   }
+  doc.northArrow(a.x + a.w - 10, a.y + a.h - 12);
+  doc.scaleBar(a.x + 2, a.y + a.h - 6, scale);
+  doc.legend(
+    a.x + a.w - 52,
+    a.y + 6,
+    levelKey === BALDRAME
+      ? [
+          { label: 'Pilar (arranque)', fill: '#343a40' },
+          { label: 'Sapata / bloco', fill: '#fff4e6', stroke: '#2f9e44' },
+          { label: 'Viga baldrame', stroke: '#343a40', dash: true },
+        ]
+      : [
+          { label: 'Pilar', fill: '#343a40' },
+          { label: 'Viga (tracejada)', stroke: '#343a40', dash: true },
+          { label: 'Laje', fill: TINTS[0], stroke: '#c9a227', dash: true },
+          { label: 'Parede (referência)', fill: '#e9ecef', stroke: '#ced4da' },
+        ],
+  );
 }

@@ -16,6 +16,15 @@ export interface Wall {
   b: string;
   thickness: number;
   height: number;
+  /** Cor própria desta parede (senão usa a cor padrão do projeto). */
+  color?: string;
+}
+
+/** Paleta de cores do projeto (3D e imagens do PDF). */
+export interface ProjectColors {
+  wall?: string;
+  ceiling?: string;
+  roof?: string;
 }
 
 export type OpeningKind = 'door' | 'window';
@@ -114,6 +123,8 @@ export interface Level {
   /** Altura piso a piso (m): pé-direito + espessura da laje. */
   height: number;
   plan: Plan;
+  /** Forro do andar (gesso, PVC, madeira…), na altura informada. */
+  ceiling?: { type: import('./ceiling').CeilingType; height?: number };
 }
 
 /** Documento completo: pavimentos + estrutura. */
@@ -125,6 +136,8 @@ export interface Building {
   roof?: import('../roof/roof').RoofModel;
   /** Terreno (lote). */
   site?: import('./site').Site;
+  /** Cores padrão de paredes, teto/lajes e telhado. */
+  colors?: ProjectColors;
 }
 
 export type SelectionKind = 'wall' | 'node' | 'opening' | 'furniture' | 'room' | 'pillar' | 'beam' | 'slab' | 'footing' | 'annotation';

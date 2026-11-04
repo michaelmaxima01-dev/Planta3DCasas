@@ -8,6 +8,7 @@ import { LevelBar } from './LevelBar';
 import { OPENING_STYLES } from '../model/openings';
 import { RoofPanel } from './RoofPanel';
 import { SitePanel } from './SitePanel';
+import { ColorPanel } from './ColorPanel';
 import { fmtNumber } from './format';
 
 const ANNOT_TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
@@ -173,6 +174,8 @@ export function Sidebar() {
       </section>
 
       <SitePanel />
+
+      <ColorPanel />
 
       <RoofPanel />
 

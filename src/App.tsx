@@ -8,6 +8,7 @@ import { type Tool, useUI } from './store/uiStore';
 import { PropertiesPanel } from './ui/PropertiesPanel';
 import { Sidebar } from './ui/Sidebar';
 import { TopBar } from './ui/TopBar';
+import { LicenseBanner } from './ui/Login';
 import { Scene3D } from './view3d/Scene3D';
 import { StructPanel } from './structure/StructPanel';
 import { StructPlan2D } from './structure/StructPlan2D';
@@ -168,6 +169,7 @@ export default function App() {
   return (
     <div className="app">
       <TopBar />
+      <LicenseBanner />
       <div className="main">
         {mode === 'arch' ? <Sidebar /> : <StructSidebar />}
         <div className={`views views-${viewMode}`}>

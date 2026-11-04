@@ -12,6 +12,7 @@ import type { Plan } from '../model/types';
 import { selectPlan, usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { NumberField, TextField } from './Fields';
+import { WALL_COLORS } from './ColorPanel';
 import { fmtArea, fmtMeters } from './format';
 
 const FLOOR_COLORS = FLOOR_FINISHES;
@@ -41,6 +42,18 @@ export function PropertiesPanel() {
             <NumberField label="Comprimento" value={L} min={0.1} max={100} onCommit={(v) => update((d) => setWallLength(d, w.id, v))} />
             <NumberField label="Espessura" value={w.thickness} min={0.05} max={1} onCommit={(v) => update((d) => void (d.walls[w.id].thickness = v))} />
             <NumberField label="Altura" value={w.height} min={0.5} max={10} onCommit={(v) => update((d) => void (d.walls[w.id].height = v))} />
+            <h4>Cor desta parede</h4>
+            <div className="swatches palette">
+              {WALL_COLORS.map((x) => (
+                <button key={x.c} title={x.n} className={w.color === x.c ? 'active' : ''} style={{ background: x.c }} onClick={() => update((d) => void (d.walls[w.id].color = x.c))} />
+              ))}
+              <label className="swatch-custom" title="Outra cor">
+                <input type="color" value={w.color ?? '#f1ede6'} onChange={(e) => update((d) => void (d.walls[w.id].color = e.target.value))} />
+              </label>
+              <button className="swatch-reset" title="Usar a cor padrão do projeto" onClick={() => update((d) => void delete d.walls[w.id].color)}>
+                ↺
+              </button>
+            </div>
             <p className="hint">Arraste a parede para movê-la. Arraste as bolinhas das pontas para mudar o ângulo e o tamanho.</p>
           </>
         );

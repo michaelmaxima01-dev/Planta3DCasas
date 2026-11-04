@@ -23,7 +23,7 @@ describe('catálogo', () => {
   });
 
   it('escadas novas cabem no próprio retângulo e chegam ao andar de cima', () => {
-    for (const id of ['stair_l_left', 'stair_l_winder', 'stair_u3', 'stair_imperial', 'stair_concrete', 'stair_steel']) {
+    for (const id of ['stair_l_left', 'stair_l_winder', 'stair_u3', 'stair_imperial', 'stair_concrete', 'stair_steel', 'stair_open', 'stair_open_l', 'stair_open_u', 'stair_curved']) {
       const c = CATALOG_BY_ID[id];
       expect(c.stair).toBe(true);
       const fp = c.footprint!(2.95);
@@ -36,6 +36,18 @@ describe('catálogo', () => {
         expect(Math.abs(p.x) - p.sx / 2, id).toBeLessThanOrEqual(fp.width / 2 + 1e-6);
         expect(Math.abs(p.z) - p.sz / 2, id).toBeLessThanOrEqual(fp.depth / 2 + 1e-6);
       }
+    }
+  });
+});
+
+describe('escadas vazadas', () => {
+  it('deixam o espaço livre embaixo (nenhuma peça encosta no chão depois dos primeiros degraus)', () => {
+    for (const id of ['stair_open', 'stair_open_l', 'stair_open_u', 'stair_curved']) {
+      const c = CATALOG_BY_ID[id];
+      const fp = c.footprint!(2.95);
+      const parts = c.parts(fp.width, fp.depth, 2.95);
+      const onFloor = parts.filter((p) => p.y - p.sy / 2 < 0.05 && p.y + p.sy / 2 > 0.6);
+      expect(onFloor, id).toHaveLength(0);
     }
   });
 });

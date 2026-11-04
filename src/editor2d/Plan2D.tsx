@@ -3,7 +3,7 @@ import { CATALOG_BY_ID } from '../catalog/catalog';
 import { detectRooms } from '../geometry/rooms';
 import { ROOM_PRESETS, applyPreset } from '../model/presets';
 import { addFenceSegment, fencePoints, insertGate, isFence, isGate } from '../model/fences';
-import { RECUO_FRONTAL, siteCorners } from '../model/site';
+import { RECUO_FRONTAL, createLotAndHouse, siteCorners } from '../model/site';
 import type { Plan } from '../model/types';
 import { type SnapResult, roundTo, snapFurnitureToWall, snapPoint } from '../geometry/snap';
 import { type Vec2, add, clamp, dist, dot, mul, normalize, perp, pointInPolygon, projectOnSegment, sub } from '../geometry/vec';
@@ -1087,7 +1087,7 @@ export function Plan2D() {
       </label>
     )}
 
-    {emptyLevel && !drawingNow && tool !== 'wall' && tool !== 'room' && <StartCard />}
+    {emptyLevel && !drawingNow && tool === 'select' && <StartCard />}
     </>
   );
 }
@@ -1095,13 +1095,16 @@ export function Plan2D() {
 /** Cartão para começar um projeto (ou andar) em branco. */
 function StartCard() {
   const update = usePlan((s) => s.update);
+  const updateBuilding = usePlan((s) => s.updateBuilding);
   const below = usePlan((s) => levelBelow(s.building, s.levelId)?.plan);
   const setTool = useUI((s) => s.setTool);
   const thickness = useUI((s) => s.wallThickness);
   const height = useUI((s) => s.wallHeight);
   const bb = below ? planBounds(below) : null;
+  const [mode, setMode] = useState<'casa' | 'lote'>(below ? 'casa' : 'lote');
   const [w, setW] = useState(bb ? fmtNumber(bb.maxX - bb.minX) : '10');
   const [h, setH] = useState(bb ? fmtNumber(bb.maxY - bb.minY) : '8');
+  const [lot, setLot] = useState({ w: '10', d: '35', hw: '8', hd: '12', recuo: '4', side: 'centro' as 'centro' | 'esquerda' | 'direita', murar: true, lawn: true });
   const create = () => {
     const W = parseNumber(w);
     const H = parseNumber(h);
@@ -1119,26 +1122,116 @@ function StartCard() {
     });
     useUI.getState().requestFit();
   };
+  const createLot = () => {
+    const n = (t: string) => parseNumber(t);
+    const o = { lotW: n(lot.w), lotD: n(lot.d), houseW: n(lot.hw), houseD: n(lot.hd), recuo: n(lot.recuo) };
+    if (!(o.lotW > 2 && o.lotD > 2 && o.houseW > 1 && o.houseD > 1)) return;
+    if (o.houseD + o.recuo > o.lotD) {
+      alert('A casa mais o recuo frontal não cabem na profundidade do terreno.');
+      return;
+    }
+    let res = { rotated: false, yard: 0 };
+    updateBuilding((b) => {
+      res = createLotAndHouse(b, { ...o, side: lot.side, lateral: 1.5, wall: { thickness: Math.max(thickness, 0.2), height }, murar: lot.murar, lawn: lot.lawn });
+    });
+    useUI.getState().set({
+      toast: `Terreno ${lot.w} × ${lot.d} m com a casa${res.rotated ? ' (girada para caber)' : ''} e ${fmtArea(res.yard)} de quintal. Agora divida os cômodos e use o catálogo (Jardim, Área gourmet) para o quintal.`,
+    });
+    setTimeout(useUI.getState().requestFit, 0);
+  };
+  const L = (k: keyof typeof lot) => (e: { target: { value: string } }) => setLot({ ...lot, [k]: e.target.value });
   return (
     <section className="start-card">
       <h3>{below ? 'Andar em branco' : 'Projeto em branco'}</h3>
-      <p>Comece pelo contorno da casa e depois divida os cômodos.</p>
-      <div className="start-dims">
-        <label>
-          Largura
-          <input value={w} onChange={(e) => setW(e.target.value)} />
-          <em>m</em>
-        </label>
-        <span>×</span>
-        <label>
-          Profundidade
-          <input value={h} onChange={(e) => setH(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
-          <em>m</em>
-        </label>
-      </div>
-      <button className="primary-btn" onClick={create}>
-        Criar contorno {w} × {h} m
-      </button>
+      {!below && (
+        <div className="seg-tabs">
+          <button className={mode === 'lote' ? 'active' : ''} onClick={() => setMode('lote')}>
+            Terreno + casa + quintal
+          </button>
+          <button className={mode === 'casa' ? 'active' : ''} onClick={() => setMode('casa')}>
+            Só a casa
+          </button>
+        </div>
+      )}
+      {mode === 'casa' || below ? (
+        <>
+          <p>Comece pelo contorno da casa e depois divida os cômodos.</p>
+          <div className="start-dims">
+            <label>
+              Largura
+              <input value={w} onChange={(e) => setW(e.target.value)} />
+              <em>m</em>
+            </label>
+            <span>×</span>
+            <label>
+              Profundidade
+              <input value={h} onChange={(e) => setH(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && create()} />
+              <em>m</em>
+            </label>
+          </div>
+          <button className="primary-btn" onClick={create}>
+            Criar contorno {w} × {h} m
+          </button>
+        </>
+      ) : (
+        <>
+          <p>Informe o terreno inteiro e a casa: o restante vira quintal para jardim, piscina, garagem…</p>
+          <b className="start-sub">Terreno (frente × fundo)</b>
+          <div className="start-dims">
+            <label>
+              Frente
+              <input value={lot.w} onChange={L('w')} />
+              <em>m</em>
+            </label>
+            <span>×</span>
+            <label>
+              Fundo
+              <input value={lot.d} onChange={L('d')} />
+              <em>m</em>
+            </label>
+          </div>
+          <b className="start-sub">Casa (largura × profundidade)</b>
+          <div className="start-dims">
+            <label>
+              Largura
+              <input value={lot.hw} onChange={L('hw')} />
+              <em>m</em>
+            </label>
+            <span>×</span>
+            <label>
+              Profund.
+              <input value={lot.hd} onChange={L('hd')} />
+              <em>m</em>
+            </label>
+          </div>
+          <div className="start-dims">
+            <label>
+              Recuo frontal
+              <input value={lot.recuo} onChange={L('recuo')} />
+              <em>m</em>
+            </label>
+            <label>
+              Posição
+              <select value={lot.side} onChange={(e) => setLot({ ...lot, side: e.target.value as typeof lot.side })}>
+                <option value="centro">Centralizada</option>
+                <option value="esquerda">Encostada à esquerda</option>
+                <option value="direita">Encostada à direita</option>
+              </select>
+            </label>
+          </div>
+          <div className="start-checks">
+            <label className="check">
+              <input type="checkbox" checked={lot.murar} onChange={(e) => setLot({ ...lot, murar: e.target.checked })} /> Murar o terreno (com portões)
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={lot.lawn} onChange={(e) => setLot({ ...lot, lawn: e.target.checked })} /> Gramado no quintal
+            </label>
+          </div>
+          <button className="primary-btn" onClick={createLot}>
+            Criar terreno {lot.w} × {lot.d} m com casa {lot.hw} × {lot.hd} m
+          </button>
+        </>
+      )}
       <div className="row">
         <button onClick={() => setTool('room')}>▭ Desenhar cômodo (C)</button>
         <button onClick={() => setTool('wall')}>▬ Desenhar paredes (W)</button>

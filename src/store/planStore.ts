@@ -3,8 +3,12 @@ import { temporal } from 'zundo';
 import { buildExampleBuilding, migrate, restack } from '../model/building';
 import { syncStairHeights } from '../model/stairs';
 import type { Building, Level, Plan } from '../model/types';
+import { currentUser } from '../auth/session';
 
-const STORAGE_KEY = 'planta3d:building:v2';
+const USER = currentUser();
+/** Cada usuário tem o seu projeto salvo neste navegador. */
+const STORAGE_KEY = `planta3d:building:v2:${USER}`;
+const SHARED_KEY = 'planta3d:building:v2';
 const LEGACY_KEY = 'planta3d:plan:v1';
 
 interface PlanState {
@@ -25,7 +29,9 @@ export const selectPlan = (s: Pick<PlanState, 'building' | 'levelId'>): Plan => 
 
 function loadInitial(): Building {
   try {
-    for (const key of [STORAGE_KEY, LEGACY_KEY]) {
+    // o proprietário herda o projeto salvo antes do sistema de usuários
+    const keys = USER === 'admin' || USER === 'local' ? [STORAGE_KEY, SHARED_KEY, LEGACY_KEY] : [STORAGE_KEY];
+    for (const key of keys) {
       const raw = localStorage.getItem(key);
       const b = raw ? migrate(JSON.parse(raw)) : null;
       if (b) return b;

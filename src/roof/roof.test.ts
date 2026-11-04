@@ -94,3 +94,38 @@ describe('telhado em tesouras', () => {
     expect(ce.elements.find((e) => e.name.startsWith('Calhas'))!.qty).toBeGreaterThan(10);
   });
 });
+
+describe('telhados e sustentações novas', () => {
+  it('embutido (platibanda), borboleta, tesoura metálica e apoio nas paredes geram geometria e materiais', async () => {
+    const { buildExampleBuilding } = await import('../model/building');
+    const { analyzeRoof, roofGeometry, roofTimber } = await import('./roof');
+    for (const [type, support] of [['embutido', 'laje'], ['borboleta', 'paredes'], ['duas_aguas', 'tesoura_metalica'], ['uma_agua', 'paredes']] as const) {
+      const b = buildExampleBuilding();
+      b.roof = { type, slope: type === 'embutido' ? 10 : 30, overhang: 0.5, rotate: false, support };
+      const g = roofGeometry(b)!;
+      expect(g.faces.length, type).toBeGreaterThan(0);
+      if (type === 'embutido') {
+        expect(g.gables).toHaveLength(4);
+        expect(g.eave.minX).toBeCloseTo(g.walls.minX);
+      }
+      const r = analyzeRoof(b, 'fibrocimento', 0.4, 0.25)!;
+      expect(r.elements.length, type).toBeGreaterThan(3);
+      if (support !== 'laje') expect(r.eaveLoads.length, support).toBeGreaterThan(0);
+      if (support === 'tesoura_metalica') expect(r.elements.some((e) => /Aço formado a frio/.test(e.name))).toBe(true);
+      if (type === 'borboleta') expect(r.elements.some((e) => /Calha central/.test(e.name))).toBe(true);
+      expect(roofTimber(b).purlins.length).toBeGreaterThan(0);
+    }
+  });
+
+  it('forro entra no quantitativo de alvenaria', async () => {
+    const { buildExampleBuilding } = await import('../model/building');
+    const { analyzeStructure } = await import('../structure/analyze');
+    const { buildQuantities } = await import('../structure/quantities');
+    const b = buildExampleBuilding();
+    b.levels[1].ceiling = { type: 'gesso' };
+    const q = buildQuantities(b, analyzeStructure(b));
+    const A = q.stages.find((s) => s.key === 'alvenaria')!;
+    expect(A.rows.some((r) => /Forro: Gesso/.test(r.item))).toBe(true);
+    expect(A.summary.find((r) => /Placas de gesso/.test(r.item))!.qty).toBeGreaterThan(50);
+  });
+});

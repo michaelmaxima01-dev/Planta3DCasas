@@ -84,3 +84,20 @@ describe('terreno', () => {
     expect(CATALOG_BY_ID.muro_bloco.fence).toBe(true);
   });
 });
+
+describe('terreno + casa + quintal', () => {
+  it('posiciona a casa com recuo, cria gramado no quintal e mura', async () => {
+    const { createBuilding } = await import('./building');
+    const { createLotAndHouse } = await import('./site');
+    const b = createBuilding();
+    const r = createLotAndHouse(b, { lotW: 10, lotD: 35, houseW: 12, houseD: 8, recuo: 4, side: 'centro', lateral: 1.5, wall: { thickness: 0.2, height: 2.8 }, murar: true, lawn: true });
+    expect(r.rotated).toBe(true);
+    const bb = planBounds({ ...b.levels[0].plan, furniture: {} })!;
+    expect(bb.maxY).toBeCloseTo(35 - 4, 1);
+    expect(bb.maxX - bb.minX).toBeCloseTo(8, 1);
+    expect(r.yard).toBeCloseTo(350 - 96);
+    const items = Object.values(b.levels[0].plan.furniture);
+    expect(items.some((f) => f.catalogId === 'lawn')).toBe(true);
+    expect(items.filter(isGate)).toHaveLength(2);
+  });
+});

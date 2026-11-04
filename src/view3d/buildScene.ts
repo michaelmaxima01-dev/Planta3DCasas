@@ -20,10 +20,10 @@ import {
   unitBox,
   unitCylinder,
   unitSphere,
-  wallMaterial,
+  wallMaterialFor,
+  slabMaterialFor,
 } from './materials';
 
-const slabMaterial = new THREE.MeshStandardMaterial({ color: '#cfcac2', roughness: 0.9 });
 
 export function prismGeometry(poly: Vec2[], bottom: number, top: number, holes: Vec2[][] = []): THREE.BufferGeometry {
   const shape = new THREE.Shape(poly.map((p) => new THREE.Vector2(p.x, p.y)));
@@ -136,7 +136,7 @@ export function openingParts(op: Opening, g: WallGeom): OpeningPart[] {
   return out;
 }
 
-export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boolean } = {}): THREE.Group {
+export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boolean; colors?: import('../model/types').ProjectColors } = {}): THREE.Group {
   const root = new THREE.Group();
   root.name = 'Casa';
   const geoms = computeWallGeometry(plan);
@@ -147,7 +147,7 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boo
   walls.name = 'Paredes';
   for (const g of Object.values(geoms)) {
     for (const p of wallPrisms(g, byWall[g.id] ?? [])) {
-      const m = new THREE.Mesh(prismGeometry(p.polygon, p.bottom, p.top), wallMaterial);
+      const m = new THREE.Mesh(prismGeometry(p.polygon, p.bottom, p.top), wallMaterialFor(plan.walls[g.id]?.color ?? opts.colors?.wall));
       m.castShadow = true;
       m.receiveShadow = true;
       m.name = `Parede ${g.id}`;
@@ -167,7 +167,7 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boo
     m.name = r.name;
     floors.add(m);
     if (opts.slab) {
-      const s = new THREE.Mesh(prismGeometry(r.polygon, -0.12, -0.001), slabMaterial);
+      const s = new THREE.Mesh(prismGeometry(r.polygon, -0.12, -0.001), slabMaterialFor(opts.colors?.ceiling));
       s.castShadow = true;
       s.receiveShadow = true;
       floors.add(s);
@@ -227,10 +227,10 @@ export function buildRoofGroup(b: import('../model/types').Building): THREE.Grou
     return bg;
   };
   const material = (b.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : b.structure.settings.roof;
-  const roofMesh = new THREE.Mesh(toGeo(g.faces), new THREE.MeshStandardMaterial({ color: ROOF_COLOR[material], roughness: 0.75, side: THREE.DoubleSide }));
+  const roofMesh = new THREE.Mesh(toGeo(g.faces), new THREE.MeshStandardMaterial({ color: b.colors?.roof ?? ROOF_COLOR[material], roughness: 0.75, side: THREE.DoubleSide }));
   roofMesh.castShadow = true;
   roofMesh.receiveShadow = true;
-  const gables = new THREE.Mesh(toGeo(g.gables), new THREE.MeshStandardMaterial({ color: '#f1ede6', roughness: 0.9, side: THREE.DoubleSide }));
+  const gables = new THREE.Mesh(toGeo(g.gables), new THREE.MeshStandardMaterial({ color: b.colors?.wall ?? '#f1ede6', roughness: 0.9, side: THREE.DoubleSide }));
   gables.castShadow = true;
   grp.add(roofMesh, gables);
   return grp;

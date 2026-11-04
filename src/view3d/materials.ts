@@ -21,10 +21,41 @@ export const openingSelectedMaterial = new THREE.MeshStandardMaterial({ color: '
 
 const cutMaterials = [wallMaterial, wallSelectedMaterial, frameMaterial, doorLeafMaterial, glassMaterial, handleMaterial, openingSelectedMaterial];
 
+let cutOn = false;
+const wallCache = new Map<string, THREE.MeshStandardMaterial>();
+
+/** Material de parede por cor (respeita o corte de "paredes baixas"). */
+export function wallMaterialFor(color: string | undefined): THREE.Material {
+  if (!color) return wallMaterial;
+  let m = wallCache.get(color);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: 0.92 });
+    cutMaterials.push(m);
+    wallCache.set(color, m);
+    if (cutOn) {
+      m.clippingPlanes = [CUT_PLANE];
+      m.side = THREE.DoubleSide;
+    }
+  }
+  return m;
+}
+
+const slabCache = new Map<string, THREE.MeshStandardMaterial>();
+/** Material de laje/teto por cor. */
+export function slabMaterialFor(color = '#cfcac2'): THREE.Material {
+  let m = slabCache.get(color);
+  if (!m) {
+    m = new THREE.MeshStandardMaterial({ color, roughness: 0.9 });
+    slabCache.set(color, m);
+  }
+  return m;
+}
+
 export function setWallCut(on: boolean) {
+  cutOn = on;
   for (const m of cutMaterials) {
     m.clippingPlanes = on ? [CUT_PLANE] : null;
-    m.side = on && (m === wallMaterial || m === wallSelectedMaterial) ? THREE.DoubleSide : THREE.FrontSide;
+    m.side = on && (m === wallMaterial || m === wallSelectedMaterial || [...wallCache.values()].includes(m as THREE.MeshStandardMaterial)) ? THREE.DoubleSide : THREE.FrontSide;
     m.needsUpdate = true;
   }
 }

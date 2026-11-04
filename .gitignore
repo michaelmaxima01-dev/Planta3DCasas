@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# dados de contas da API (gerados no servidor)
+public/api/data/*.json
+public/api/data/*.key
+public/api/data/*.tmp

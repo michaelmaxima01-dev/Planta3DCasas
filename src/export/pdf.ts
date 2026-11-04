@@ -39,7 +39,6 @@ export interface PdfView {
   angle?: number;
 }
 
-const SCALES = [20, 25, 50, 75, 100, 125, 150, 200, 250, 500, 1000];
 const PAPER: Record<Paper, { w: number; h: number }> = { A3: { w: 420, h: 297 }, A4: { w: 297, h: 210 } };
 const INK = '#1f2328';
 const MUTED = '#6b7480';
@@ -85,9 +84,12 @@ function mix(hex: string, white: number): string {
 }
 
 /** Escolhe a maior escala padrão (menor denominador) em que a área cabe no quadro. */
+/** Escalas usadas na escolha automática (inclui intermediárias para a planta ocupar a folha). */
+const AUTO_SCALES = [20, 25, 30, 40, 50, 60, 75, 80, 100, 125, 150, 200, 250, 300, 400, 500, 750, 1000];
+
 export function pickScale(widthM: number, heightM: number, box: { w: number; h: number }): number {
-  for (const s of SCALES) if ((widthM * 1000) / s <= box.w && (heightM * 1000) / s <= box.h) return s;
-  return SCALES[SCALES.length - 1];
+  for (const s of AUTO_SCALES) if ((widthM * 1000) / s <= box.w && (heightM * 1000) / s <= box.h) return s;
+  return AUTO_SCALES[AUTO_SCALES.length - 1];
 }
 
 export class Doc {
@@ -237,6 +239,49 @@ export class Doc {
     if (st.dash) p.setLineDashPattern([], 0);
   }
 
+  // ---------- norte, escala gráfica e legenda ----------
+  northArrow(cx: number, cy: number, r = 7) {
+    const p = this.pdf;
+    p.setDrawColor(INK);
+    p.setLineWidth(0.3);
+    p.circle(cx, cy, r, 'S');
+    p.setFillColor(INK);
+    p.triangle(cx, cy - r * 0.85, cx - r * 0.35, cy + r * 0.5, cx, cy + r * 0.2, 'F');
+    p.setFillColor('#ffffff');
+    p.triangle(cx, cy - r * 0.85, cx + r * 0.35, cy + r * 0.5, cx, cy + r * 0.2, 'FD');
+    this.text('N', cx, cy - r - 1.5, 2.8, { bold: true, align: 'center' });
+  }
+
+  scaleBar(x: number, y: number, scale: number) {
+    const p = this.pdf;
+    const steps = scale <= 50 ? [0, 1, 2, 3, 4, 5] : scale <= 100 ? [0, 2, 4, 6, 8, 10] : [0, 5, 10, 15, 20, 25];
+    const k = 1000 / scale;
+    const total = steps[steps.length - 1];
+    for (let i = 0; i < steps.length - 1; i++) {
+      p.setFillColor(i % 2 ? '#ffffff' : INK);
+      p.setDrawColor(INK);
+      p.setLineWidth(0.2);
+      p.rect(x + steps[i] * k, y, (steps[i + 1] - steps[i]) * k, 1.6, 'FD');
+      this.text(String(steps[i]), x + steps[i] * k, y + 4.2, 1.8, { align: 'center' });
+    }
+    this.text(`${total} m`, x + total * k, y + 4.2, 1.8, { align: 'center' });
+    this.text(`ESCALA 1:${scale}`, x, y - 1.6, 1.9, { bold: true, color: MUTED });
+  }
+
+  legend(x: number, y: number, items: { label: string; fill?: string; stroke?: string; dash?: boolean }[]) {
+    const p = this.pdf;
+    items.forEach((it, i) => {
+      const yy = y + i * 5;
+      if (it.fill) p.setFillColor(it.fill);
+      p.setDrawColor(it.stroke ?? INK);
+      p.setLineWidth(0.25);
+      p.setLineDashPattern(it.dash ? [1, 0.7] : [], 0);
+      p.rect(x, yy - 2.2, 6, 3, it.fill ? 'FD' : 'S');
+      p.setLineDashPattern([], 0);
+      this.text(it.label, x + 8, yy, 2, {});
+    });
+  }
+
   // ---------- tabelas ----------
   table(
     x: number,
@@ -384,7 +429,7 @@ function coverSheet(doc: Doc, sch: ProjectSchedule, o: PdfOptions, images: PdfIm
 function planSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, o: PdfOptions, title: string) {
   doc.newSheet(title);
   const a = doc.area;
-  const box = { x: a.x, y: a.y + 8, w: a.w, h: a.h - 8 };
+  const box = { x: a.x, y: a.y + 8, w: a.w, h: a.h - 18 };
   // a margem das cotas tem tamanho fixo no papel (24 mm de cada lado)
   const probe = buildDrawing(plan, sch, { scale: 100, roomFills: true });
   const c = probe.content;
@@ -394,6 +439,8 @@ function planSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, o: PdfOptions, ti
   doc.text(`${title.toUpperCase()}  -  ESC. 1:${scale}`, a.x, a.y + 2, 3, { bold: true });
   doc.text('Cotas e áreas em metros. P = porta, J = janela (ver quadro de esquadrias).', a.x + a.w, a.y + 2, 2, { color: MUTED, align: 'right' });
   doc.drawDrawing(d, box, scale, d.bounds);
+  doc.northArrow(a.x + a.w - 10, a.y + a.h - 12);
+  doc.scaleBar(a.x + 2, a.y + a.h - 6, scale);
 }
 
 function tablesSheet(doc: Doc, sch: ProjectSchedule) {

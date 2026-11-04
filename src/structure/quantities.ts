@@ -8,6 +8,8 @@
  */
 import { dist } from '../geometry/vec';
 import { CATALOG_BY_ID } from '../catalog/catalog';
+import { detectRooms } from '../geometry/rooms';
+import { ceilingDef } from '../model/ceiling';
 import type { Building } from '../model/types';
 import type { StructureResult } from './analyze';
 
@@ -243,6 +245,23 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
   A.row('Chapisco e reboco (2 faces, 2 cm)', 'm³', plaster);
   A.row('Contrapiso 4 cm (traço 1:4)', 'm³', screed, `${f1(floorArea)} m² de piso`);
   const blockRow: QtyRow[] = [{ group: A.group, item: 'Blocos cerâmicos 14×19×29', unit: 'un', qty: Math.ceil(blocks) }];
+  // forro (por andar)
+  const ceilMat = new Map<string, QtyRow>();
+  for (const l of b.levels) {
+    if (!l.ceiling) continue;
+    const def = ceilingDef(l.ceiling.type);
+    const area = detectRooms(l.plan).reduce((acc, rm) => acc + rm.area, 0);
+    if (area <= 0) continue;
+    A.row(`Forro: ${def.name} (${l.name})`, 'm²', area);
+    for (const m of def.materials) {
+      const k = `${m.item}|${m.unit}`;
+      const q = area * m.perM2 * 1.05;
+      const prev = ceilMat.get(k);
+      if (prev) prev.qty += q;
+      else ceilMat.set(k, { group: A.group, item: m.item, unit: m.unit, qty: q });
+    }
+  }
+  blockRow.push(...ceilMat.values());
 
   // ---------- telhado ----------
   const roofRows: QtyRow[] = [];

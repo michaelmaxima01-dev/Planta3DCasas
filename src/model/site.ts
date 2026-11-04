@@ -7,7 +7,7 @@ import { CATALOG_BY_ID } from '../catalog/catalog';
 import { detectRooms } from '../geometry/rooms';
 import type { Vec2 } from '../geometry/vec';
 import { addFenceSegment, insertGate } from './fences';
-import { planBounds } from './ops';
+import { addFurniture, addWall, planBounds } from './ops';
 import type { Building } from './types';
 
 export type SiteFront = 'baixo' | 'cima' | 'esquerda' | 'direita';
@@ -148,4 +148,52 @@ export function wallSite(b: Building, opts: { side?: string; front?: string } = 
     n++;
   }
   return n;
+}
+
+export interface LotPlanOptions {
+  lotW: number;
+  lotD: number;
+  houseW: number;
+  houseD: number;
+  recuo: number;
+  side: 'centro' | 'esquerda' | 'direita';
+  lateral: number;
+  wall: { thickness: number; height: number };
+  murar: boolean;
+  lawn: boolean;
+}
+
+/**
+ * Cria o terreno, o contorno da casa (com recuo frontal) e o quintal no térreo.
+ * Se a casa for mais larga que o terreno, ela é girada (largura ↔ profundidade).
+ */
+export function createLotAndHouse(b: Building, o: LotPlanOptions): { rotated: boolean; yard: number } {
+  let { houseW, houseD } = o;
+  let rotated = false;
+  if (houseW > o.lotW - 0.3 && houseD <= o.lotW - 0.3) {
+    [houseW, houseD] = [houseD, houseW];
+    rotated = true;
+  }
+  houseW = Math.min(houseW, o.lotW);
+  houseD = Math.min(houseD, o.lotD - o.recuo);
+  b.site = { w: o.lotW, d: o.lotD, x: 0, y: 0, front: 'baixo', show: true };
+  const lat = Math.min(o.lateral, Math.max(0, o.lotW - houseW));
+  const x0 = o.side === 'esquerda' ? lat : o.side === 'direita' ? o.lotW - houseW - lat : (o.lotW - houseW) / 2;
+  const y0 = o.lotD - o.recuo - houseD;
+  const plan = b.levels[0].plan;
+  const c = [
+    { x: x0, y: y0 },
+    { x: x0 + houseW, y: y0 },
+    { x: x0 + houseW, y: y0 + houseD },
+    { x: x0, y: y0 + houseD },
+  ];
+  for (let i = 0; i < 4; i++) addWall(plan, c[i], c[(i + 1) % 4], o.wall);
+  if (o.lawn && y0 > 1.2) addFurniture(plan, 'lawn', { x: o.lotW / 2, y: y0 / 2 }, 0, { width: o.lotW - 0.4, depth: y0 - 0.6 });
+  if (o.murar) wallSite(b);
+  return { rotated, yard: o.lotW * o.lotD - houseW * houseD };
+}
+
+/** Área construída aproximada (soma dos contornos dos cômodos de todos os andares). */
+export function builtArea(b: Building): number {
+  return b.levels.reduce((a, l) => a + detectRooms(l.plan).reduce((s, r) => s + shoelace(r.polygon), 0), 0);
 }

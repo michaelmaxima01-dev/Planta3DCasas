@@ -1494,6 +1494,65 @@ CATALOG.push(
   },
 );
 
+// ---------- Escadas vazadas (espaço livre embaixo) e curva ----------
+/** Converte degraus maciços em placa fina + laje dentada: libera o espaço sob a escada. */
+function hollow(ps: Part[], t = 0.18): Part[] {
+  return ps.map((p) => {
+    const bottom = p.y - p.sy / 2;
+    if (p.shape !== 'box' || Math.abs(bottom) > 1e-6 || p.sy <= t + 0.05 || p.material === 'metal') return p;
+    const top = p.y + p.sy / 2;
+    return { ...p, y: top - t / 2, sy: t };
+  });
+}
+const stairById = (id: string) => CATALOG.find((c) => c.id === id)!;
+CATALOG.push(
+  {
+    id: 'stair_open', name: 'Escada reta vazada (espaço útil embaixo)', category: 'Escadas', width: 0.9, depth: 4.34, height: 2.95, stair: true,
+    footprint: (h) => stairById('stair').footprint!(h),
+    parts: (w, d, h) => hollow(stairById('stair').parts(w, d, h)),
+  },
+  {
+    id: 'stair_open_l', name: 'Escada em L vazada (espaço útil embaixo)', category: 'Escadas', width: 2.6, depth: 2.95, height: 2.95, stair: true,
+    footprint: (h) => stairById('stair_l').footprint!(h),
+    parts: (w, d, h) => hollow(stairById('stair_l').parts(w, d, h)),
+  },
+  {
+    id: 'stair_open_u', name: 'Escada em U vazada (espaço útil embaixo)', category: 'Escadas', width: 1.9, depth: 2.95, height: 2.95, stair: true,
+    footprint: (h) => stairById('stair_u').footprint!(h),
+    parts: (w, d, h) => hollow(stairById('stair_u').parts(w, d, h)),
+  },
+  {
+    id: 'stair_curved', name: 'Escada curva em meia-lua (vazada)', category: 'Escadas', width: 3.8, depth: 2.0, height: 2.95, stair: true,
+    footprint: () => ({ width: 3.8, depth: 2.0 }),
+    parts: (w, d, h) => {
+      const { n, rise } = steps(h);
+      const R = Math.min(w / 2, d - 0.05);
+      const r0 = Math.max(0.5, R - 1.1);
+      const rm = (R + r0) / 2;
+      const cz = d / 2 - 0.05;
+      const da = Math.PI / n;
+      const parts: Part[] = [];
+      for (let i = 0; i < n; i++) {
+        const a = Math.PI + (i + 0.5) * da;
+        const top = (i + 1) * rise;
+        const at = (r: number) => ({ x: Math.cos(a) * r, z: cz + Math.sin(a) * r });
+        const m = at(rm);
+        parts.push({ shape: 'box', x: m.x, y: top - 0.03, z: m.z, sx: R - r0, sy: 0.06, sz: Math.max(0.2, rm * da * 1.08), color: stepColor(i), material: 'wood', ry: a });
+        // longarinas curvas (externa e interna), logo abaixo dos degraus
+        for (const r of [R - 0.04, r0 + 0.04]) {
+          const q = at(r);
+          parts.push({ shape: 'box', x: q.x, y: top - 0.2, z: q.z, sx: 0.08, sy: 0.28, sz: r * da * 1.12, color: '#3a3f44', material: 'metal', ry: a });
+        }
+        if (i % 2 === 0) {
+          const q = at(R - 0.04);
+          parts.push(C(q.x, q.z, 0.03, 0.03, top, 0.9, '#5b5f63', 'metal'));
+        }
+      }
+      return parts;
+    },
+  },
+);
+
 // reorganiza itens antigos nas novas categorias
 for (const c of CATALOG) {
   if (c.id === 'tree' || c.id === 'shrub') c.category = 'Jardim';

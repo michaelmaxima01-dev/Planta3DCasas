@@ -227,7 +227,7 @@ export function analyzeStructure(building: Building): StructureResult {
   const levels = building.levels;
   const roofMaterial: RoofKind = (building.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : s.roof;
   const roofResult = analyzeRoof(building, roofMaterial, ROOFS.find((x) => x.key === roofMaterial)!.load, s.roofLiveLoad);
-  const trussRoof = roofResult?.support === 'tesoura' && roofResult.type !== 'plano';
+  const trussRoof = (roofResult?.support ?? 'laje') !== 'laje' && roofResult?.type !== 'plano';
   const issues: Issue[] = [];
   const allPillars = Object.values(building.structure.pillars);
   const allBeams = Object.values(building.structure.beams);

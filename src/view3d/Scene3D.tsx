@@ -1,4 +1,5 @@
 import { siteSize } from '../model/site';
+import { ceilingDef, ceilingHeight } from '../model/ceiling';
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber';
 import { useEffect, useMemo, useState } from 'react';
@@ -26,7 +27,8 @@ import {
   unitBox,
   unitCylinder,
   unitSphere,
-  wallMaterial,
+  wallMaterialFor,
+  slabMaterialFor,
   wallSelectedMaterial,
 } from './materials';
 
@@ -89,6 +91,7 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
     return computeFrame(building.levels[0].plan, top.elevation + top.height);
   }, [building.levels]);
   const showRoof = useUI((s) => s.showRoof);
+  const showCeiling = useUI((s) => s.showCeiling);
   // laje de piso de cada pavimento superior = contorno dos cômodos do pavimento de baixo
   const slabPolys = useMemo(() => building.levels.map((l) => detectRooms(l.plan).map((r) => r.polygon)), [building.levels]);
   const holesByLevel = useMemo(() => building.levels.map((_, i) => floorHoles(building, i)), [building]);
@@ -141,6 +144,8 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
             stairs={holesByLevel[building.levels.indexOf(l)]}
             selection={l.id === active.id ? selection : null}
             select={l.id === active.id ? select : noSelect}
+            colors={building.colors}
+            ceiling={showCeiling && !cutWalls && l.ceiling ? { color: ceilingDef(l.ceiling.type).color, height: l.ceiling.height ?? ceilingHeight(l) } : undefined}
           />
         </group>
       ))}
@@ -152,7 +157,7 @@ function SceneContents({ building, levelId, initialTarget }: { building: Buildin
   );
 }
 
-function LevelContents({ plan, slabs, stairs, selection, select }: { plan: Plan; slabs: Vec2[][]; stairs: FurnitureItem[]; selection: Selection; select: Select }) {
+function LevelContents({ plan, slabs, stairs, selection, select, colors, ceiling }: { plan: Plan; slabs: Vec2[][]; stairs: FurnitureItem[]; selection: Selection; select: Select; colors?: Building['colors']; ceiling?: { color: string; height: number } }) {
   const holes = useMemo(() => stairs.map(stairRect), [stairs]);
   const rooms0 = useMemo(() => detectRooms(plan), [plan]);
   const slabHoles = useMemo(() => slabs.map((poly) => holes.filter((h) => pointInPolygon(centroid(h), poly))), [slabs, holes]);
@@ -167,8 +172,10 @@ function LevelContents({ plan, slabs, stairs, selection, select }: { plan: Plan;
   return (
     <>
       {slabs.map((poly, i) => (
-        <Slab key={`slab-${i}`} polygon={poly} holes={slabHoles[i]} />
+        <Slab key={`slab-${i}`} polygon={poly} holes={slabHoles[i]} color={colors?.ceiling} />
       ))}
+      {ceiling &&
+        rooms.map((r) => <Ceiling key={`forro-${r.id}`} room={r} height={ceiling.height} color={ceiling.color} />)}
       {rooms.map((r) => (
         <Floor key={r.id} room={r} holes={roomHoles.get(r.id) ?? NO_HOLES} selected={selection?.kind === 'room' && selection.id === r.id} select={select} />
       ))}
@@ -176,7 +183,7 @@ function LevelContents({ plan, slabs, stairs, selection, select }: { plan: Plan;
         <Railing key={`rail-${f.id}`} stair={f} />
       ))}
       {Object.values(geoms).map((g) => (
-        <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} />
+        <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} color={plan.walls[g.id]?.color ?? colors?.wall} />
       ))}
       {Object.values(plan.openings).map((op) => {
         const g = geoms[op.wallId];
@@ -189,13 +196,11 @@ function LevelContents({ plan, slabs, stairs, selection, select }: { plan: Plan;
   );
 }
 
-const slabMaterial = new THREE.MeshStandardMaterial({ color: '#cfcac2', roughness: 0.9 });
-
 /** Laje de piso dos pavimentos superiores (espessura de referência no 3D de arquitetura). */
-function Slab({ polygon, holes }: { polygon: Vec2[]; holes: Vec2[][] }) {
+function Slab({ polygon, holes, color }: { polygon: Vec2[]; holes: Vec2[][]; color?: string }) {
   const geo = useMemo(() => prismGeometry(polygon, -SLAB_T, -0.001, holes), [polygon, holes]);
   useEffect(() => () => geo.dispose(), [geo]);
-  return <mesh geometry={geo} material={slabMaterial} castShadow receiveShadow />;
+  return <mesh geometry={geo} material={slabMaterialFor(color)} castShadow receiveShadow />;
 }
 
 function CameraFitter({ token, frame }: { token: number; frame: ReturnType<typeof computeFrame> }) {
@@ -210,10 +215,10 @@ function CameraFitter({ token, frame }: { token: number; frame: ReturnType<typeo
   return null;
 }
 
-function Wall3D({ g, openings, selected, select }: { g: WallGeom; openings: Opening[]; selected: boolean; select: Select }) {
+function Wall3D({ g, openings, selected, select, color }: { g: WallGeom; openings: Opening[]; selected: boolean; select: Select; color?: string }) {
   const geos = useMemo(() => wallPrisms(g, openings).map((p) => prismGeometry(p.polygon, p.bottom, p.top)), [g, openings]);
   useEffect(() => () => geos.forEach((x) => x.dispose()), [geos]);
-  const mat = selected ? wallSelectedMaterial : wallMaterial;
+  const mat = selected ? wallSelectedMaterial : wallMaterialFor(color);
   return (
     <group onClick={clickHandler(select, { kind: 'wall', id: g.id })}>
       {geos.map((geo, i) => (
@@ -268,8 +273,10 @@ function Roof({ building }: { building: Building }) {
     geo?.gables.dispose();
   }, [geo]);
   const material = (building.roof?.type ?? 'duas_aguas') === 'plano' ? 'laje' : building.structure.settings.roof;
-  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: ROOF_COLOR[material], roughness: 0.75, side: THREE.DoubleSide }), [material]);
-  const gableMat = useMemo(() => new THREE.MeshStandardMaterial({ color: '#f1ede6', roughness: 0.9, side: THREE.DoubleSide }), []);
+  const roofColor = building.colors?.roof ?? ROOF_COLOR[material];
+  const gableColor = building.colors?.wall ?? '#f1ede6';
+  const mat = useMemo(() => new THREE.MeshStandardMaterial({ color: roofColor, roughness: 0.75, side: THREE.DoubleSide }), [roofColor]);
+  const gableMat = useMemo(() => new THREE.MeshStandardMaterial({ color: gableColor, roughness: 0.9, side: THREE.DoubleSide }), [gableColor]);
   if (!geo) return null;
   return (
     <group>
@@ -277,6 +284,19 @@ function Roof({ building }: { building: Building }) {
       <mesh geometry={geo.gables} material={gableMat} castShadow receiveShadow />
     </group>
   );
+}
+
+const ceilingCache = new Map<string, THREE.Material>();
+/** Forro: placa fina na altura do forro, cobrindo o cômodo. */
+function Ceiling({ room, height, color }: { room: Room; height: number; color: string }) {
+  const geo = useMemo(() => prismGeometry(room.inner, height, height + 0.03), [room.inner, height]);
+  useEffect(() => () => geo.dispose(), [geo]);
+  let mat = ceilingCache.get(color);
+  if (!mat) {
+    mat = new THREE.MeshStandardMaterial({ color, roughness: 0.85, side: THREE.DoubleSide });
+    ceilingCache.set(color, mat);
+  }
+  return <mesh geometry={geo} material={mat} receiveShadow />;
 }
 
 function Floor({ room, holes = [], selected, select }: { room: Room; holes?: Vec2[][]; selected: boolean; select: Select }) {

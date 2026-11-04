@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { buildDrawing } from '../export/drawing';
 import { type DxfUnit, buildDxf, dxfToBytes } from '../export/dxf';
 import { type Paper, buildPdf } from '../export/pdf';
@@ -11,6 +11,13 @@ import { addStructureToDrawing } from '../structure/drawingLayers';
 import { cachedAnalysis } from '../structure/ops';
 import { appendStructuralSheets, buildStructuralReport } from '../structure/report';
 import { BALDRAME } from '../structure/types';
+import { Doc } from '../export/pdf';
+import { appendBudgetSheets } from '../export/budgetPdf';
+import { budgetCsv, brl, buildBudget, loadProfiles } from '../model/budget';
+import { builtArea } from '../model/site';
+import { buildQuantities } from '../structure/quantities';
+import { currentUser } from '../auth/session';
+import { BudgetEditor } from './BudgetEditor';
 
 const META_FIELDS: { key: keyof ProjectMeta; label: string; placeholder: string }[] = [
   { key: 'title', label: 'Nome do projeto', placeholder: 'Residência Silva' },
@@ -77,6 +84,30 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
   const [dxfDims, setDxfDims] = useState(true);
   const [dxfTexts, setDxfTexts] = useState(true);
 
+  const [profiles, setProfiles] = useState(() => loadProfiles(currentUser()));
+  const [profileId, setProfileId] = useState(() => {
+    try {
+      return localStorage.getItem(`planta3d:orcamento-ativo:${currentUser()}`) ?? 'padrao';
+    } catch {
+      return 'padrao';
+    }
+  });
+  const [editingBudget, setEditingBudget] = useState(false);
+  const [pdfBudget, setPdfBudget] = useState(true);
+  const profile = profiles.find((p) => p.id === profileId) ?? profiles[0];
+  const quantities = useMemo(() => buildQuantities(building, cachedAnalysis(building)), [building]);
+  const area = useMemo(() => builtArea(building), [building]);
+  const budget = useMemo(() => buildBudget(quantities, profile, area), [quantities, profile, area]);
+  const chooseProfile = (id: string) => {
+    setProfiles(loadProfiles(currentUser()));
+    setProfileId(id);
+    try {
+      localStorage.setItem(`planta3d:orcamento-ativo:${currentUser()}`, id);
+    } catch {
+      /* sem armazenamento */
+    }
+  };
+
   const [busy, setBusy] = useState<string | null>(null);
   const [done, setDone] = useState<string | null>(null);
 
@@ -109,7 +140,10 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           furnitureList,
           views3d,
           meta,
-          extraSheets: pdfStructure && hasStructure ? (doc) => appendStructuralSheets(doc, building, cachedAnalysis(building)) : undefined,
+          extraSheets: (doc) => {
+            if (pdfStructure && hasStructure) appendStructuralSheets(doc, building, cachedAnalysis(building));
+            if (pdfBudget) appendBudgetSheets(doc, budget, profile.name);
+          },
         },
         { cover: tour.cover, views: tour.shots },
       );
@@ -184,7 +218,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                   <select value={scale} onChange={(e) => setScale(Number(e.target.value))}>
                     {SCALE_OPTIONS.map((s) => (
                       <option key={s} value={s}>
-                        {s === 0 ? 'Automática' : `1:${s}`}
+                        {s === 0 ? 'Automática (maior que cabe)' : `1:${s}`}
                       </option>
                     ))}
                   </select>
@@ -197,6 +231,9 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
                 </label>
                 <label className="check">
                   <input type="checkbox" checked={views3d} onChange={(e) => setViews3d(e.target.checked)} /> Vistas 3D ao redor da casa (8 perspectivas, 4 fachadas e vistas aéreas)
+                </label>
+                <label className="check">
+                  <input type="checkbox" checked={pdfBudget} onChange={(e) => setPdfBudget(e.target.checked)} /> Orçamento estimado ({brl(budget.total)})
                 </label>
                 <label className="check" title={hasStructure ? '' : 'Gere a estrutura na aba Estrutura'}>
                   <input type="checkbox" disabled={!hasStructure} checked={pdfStructure && hasStructure} onChange={(e) => setPdfStructure(e.target.checked)} /> Estrutura (fôrmas,
@@ -270,6 +307,61 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
               </button>
             </article>
 
+            <article className="format budget-card">
+              <div className="format-head">
+                <b>Orçamento</b>
+                <span>Materiais + mão de obra com seus preços</span>
+              </div>
+              <label className="select-field">
+                <span>Perfil de preços</span>
+                <select value={profile.id} onChange={(e) => chooseProfile(e.target.value)}>
+                  {profiles.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="budget-mini">
+                {budget.stages.map((st) => (
+                  <div key={st.key} className="stat">
+                    <span>{st.name}</span>
+                    <b>{brl(st.total)}</b>
+                  </div>
+                ))}
+                <div className="stat total">
+                  <span>Total ({brl(budget.perM2)}/m²)</span>
+                  <b>{brl(budget.total)}</b>
+                </div>
+              </div>
+              <button onClick={() => setEditingBudget(true)}>✎ Editar valores e mão de obra</button>
+              <div className="row">
+                <button
+                  className="primary"
+                  disabled={!!busy || empty}
+                  onClick={() => {
+                    const doc = new Doc(paper, meta);
+                    appendBudgetSheets(doc, budget, profile.name);
+                    doc.finish();
+                    doc.pdf.save(`${fileBase}-orcamento.pdf`);
+                    setDone(`Orçamento gerado (${fileBase}-orcamento.pdf): ${brl(budget.total)}`);
+                  }}
+                >
+                  PDF do orçamento
+                </button>
+                <button
+                  className="primary"
+                  disabled={!!busy || empty}
+                  onClick={() => {
+                    download(budgetCsv(budget, profile.name, meta.title || 'Projeto'), 'text/csv;charset=utf-8', `${fileBase}-orcamento.csv`);
+                    setDone(`Planilha gerada (${fileBase}-orcamento.csv), abre no Excel.`);
+                  }}
+                >
+                  Planilha (Excel)
+                </button>
+              </div>
+            </article>
+
             <article className="format">
               <div className="format-head">
                 <b>Estrutura</b>
@@ -305,6 +397,7 @@ export function ExportDialog({ onClose }: { onClose: () => void }) {
           {done && <p className="done">✓ {done}</p>}
         </div>
       </div>
+      {editingBudget && <BudgetEditor q={quantities} area={area} profileId={profile.id} onClose={() => { setEditingBudget(false); chooseProfile(profileId); }} onSaved={(id) => chooseProfile(id)} />}
     </div>
   );
 }

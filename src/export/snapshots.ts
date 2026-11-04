@@ -42,7 +42,7 @@ export function renderViews(levels: Level[], views: ViewKind[], width = 1600, he
   ground.receiveShadow = true;
   scene.add(ground);
   levels.forEach((l, i) => {
-    const g = buildHouseGroup(l.plan, { lights: true, slab: i > 0 });
+    const g = buildHouseGroup(l.plan, { lights: true, slab: i > 0, colors: building?.colors });
     g.position.y = l.elevation;
     scene.add(g);
   });
@@ -133,7 +133,7 @@ export function renderTour(building: Building, o: { width?: number; height?: num
   const walls = new THREE.Group();
   levels.forEach((l, i) => {
     const plain = { ...l.plan, furniture: Object.fromEntries(Object.entries(l.plan.furniture).filter(([, f]) => !isWallItem(f.catalogId))) };
-    const g = buildHouseGroup(plain, { lights: true, slab: i > 0 });
+    const g = buildHouseGroup(plain, { lights: true, slab: i > 0, colors: building.colors });
     g.position.y = l.elevation;
     house.add(g);
     const onlyWalls = { ...l.plan, walls: {}, nodes: {}, openings: {}, rooms: {}, annotations: {}, furniture: Object.fromEntries(Object.entries(l.plan.furniture).filter(([, f]) => isWallItem(f.catalogId))) };

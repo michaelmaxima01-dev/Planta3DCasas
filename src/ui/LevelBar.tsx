@@ -2,6 +2,7 @@ import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { NumberField, TextField } from './Fields';
 import { fmtNumber } from './format';
+import { CEILINGS, type CeilingType, ceilingHeight } from '../model/ceiling';
 
 /** Lista de pavimentos: escolher o ativo, adicionar, renomear, altura e excluir. */
 export function LevelBar({ foundation = false }: { foundation?: boolean }) {
@@ -56,6 +57,39 @@ export function LevelBar({ foundation = false }: { foundation?: boolean }) {
             max={8}
             onCommit={(v) => updateBuilding((b) => void (b.levels.find((l) => l.id === active.id)!.height = v))}
           />
+          {!foundation && (
+            <>
+              <label className="select-field">
+                <span>Forro deste andar</span>
+                <select
+                  value={active.ceiling?.type ?? ''}
+                  onChange={(e) =>
+                    updateBuilding((b) => {
+                      const l = b.levels.find((x) => x.id === active.id)!;
+                      if (!e.target.value) delete l.ceiling;
+                      else l.ceiling = { ...l.ceiling, type: e.target.value as CeilingType };
+                    })
+                  }
+                >
+                  <option value="">Sem forro</option>
+                  {CEILINGS.map((c) => (
+                    <option key={c.key} value={c.key}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {active.ceiling && (
+                <NumberField
+                  label="Altura do forro"
+                  value={active.ceiling.height ?? ceilingHeight(active)}
+                  min={2.2}
+                  max={active.height}
+                  onCommit={(v) => updateBuilding((b) => void (b.levels.find((l) => l.id === active.id)!.ceiling!.height = v))}
+                />
+              )}
+            </>
+          )}
         </div>
       )}
       <div className="row">
