@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Demonstração do Kit de Licenças</title>
+    <link rel="stylesheet" href="../cliente/kit-licencas.css" />
+    <style>
+      body { margin: 0; font-family: Inter, 'Segoe UI', system-ui, sans-serif; background: #f4f6f9; color: #1f2933; }
+      .app-bar { display: flex; align-items: center; gap: 12px; padding: 12px 18px; background: #1b2533; color: #e9eef5; }
+      .app-bar b { margin-right: auto; }
+      .app-bar .lk-btn { background: transparent; color: #e9eef5; border-color: rgba(255,255,255,.2); }
+      main { max-width: 760px; margin: 40px auto; padding: 0 16px; }
+      .box { background: #fff; border: 1px solid #e3e8ef; border-radius: 12px; padding: 18px; }
+    </style>
+  </head>
+  <body>
+    <script type="module">
+      import { createLicencas, nomePlano, diasRestantes } from '../cliente/licencas.js';
+      import { protegerApp, abrirPainelUsuarios } from '../cliente/telas.js';
+
+      // aponte para onde o auth.php ficou no seu servidor
+      const auth = createLicencas({ url: '../servidor/api/auth.php', storageKey: 'demo.sessao' });
+
+      protegerApp(auth, {
+        titulo: 'Meu Sistema',
+        onEntrar: (s) => {
+          const d = diasRestantes(s.expires);
+          document.body.insertAdjacentHTML(
+            'beforeend',
+            `<div class="app-bar"><b>Meu Sistema</b><span>${s.name}</span>
+              ${s.role === 'owner' ? '<button class="lk-btn" id="usuarios">Usuários</button>' : ''}
+              <button class="lk-btn" id="sair">Sair</button></div>
+             <main><div class="box"><h2>Bem-vindo, ${s.name}!</h2>
+               <p>Perfil: <b>${s.role === 'owner' ? 'Proprietário' : 'Usuário'}</b></p>
+               <p>Licença: <b>${s.expires ? `até ${new Date(s.expires).toLocaleDateString('pt-BR')} (${d} dia(s))` : 'vitalícia'}</b></p>
+               <p>Aqui entra o conteúdo do seu sistema.</p></div></main>`,
+          );
+          document.getElementById('sair').onclick = () => { auth.sair(); location.reload(); };
+          document.getElementById('usuarios')?.addEventListener('click', () => abrirPainelUsuarios(auth));
+        },
+      });
+    </script>
+  </body>
+</html>

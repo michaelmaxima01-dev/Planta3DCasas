@@ -1,0 +1,3 @@
+servidor/api/data/*.json
+servidor/api/data/*.key
+servidor/api/data/*.tmp

@@ -1,0 +1,317 @@
+/* Kit de Licenças — estilos (prefixo lk-). Ajuste as variáveis para a identidade do seu projeto. */
+:root {
+  --lk-accent: #2f6fed;
+  --lk-accent-2: #4f8cff;
+  --lk-text: #1f2933;
+  --lk-muted: #66727f;
+  --lk-border: #dde2e9;
+  --lk-bg: #f4f6f9;
+  --lk-danger: #d6455d;
+  --lk-ring: rgba(47, 111, 237, 0.28);
+}
+.lk-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: linear-gradient(160deg, #e9f0fb 0%, var(--lk-bg) 60%);
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  color: var(--lk-text);
+}
+.lk-card {
+  width: 100%;
+  max-width: 360px;
+  background: #fff;
+  border: 1px solid var(--lk-border);
+  border-radius: 14px;
+  padding: 28px 24px;
+  box-shadow: 0 12px 32px rgba(31, 41, 51, 0.1);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.lk-title {
+  font-size: 22px;
+  font-weight: 700;
+  text-align: center;
+  margin: 0;
+}
+.lk-sub {
+  margin: 0 0 4px;
+  text-align: center;
+  color: var(--lk-muted);
+  font-size: 13px;
+}
+.lk-card label,
+.lk-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--lk-muted);
+}
+.lk-input,
+.lk-card input:not([type='checkbox']),
+.lk-panel input:not([type='checkbox']),
+.lk-panel select {
+  font: inherit;
+  font-size: 14px;
+  color: var(--lk-text);
+  padding: 9px 10px;
+  border: 1px solid var(--lk-border);
+  border-radius: 8px;
+  background: #fff;
+}
+.lk-card input:focus,
+.lk-panel input:focus,
+.lk-panel select:focus {
+  outline: none;
+  border-color: var(--lk-accent);
+  box-shadow: 0 0 0 3px var(--lk-ring);
+}
+.lk-card .lk-remember {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.lk-error {
+  color: var(--lk-danger);
+  background: #fdecef;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.lk-ok {
+  color: #087f5b;
+  background: #e6fcf5;
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 13px;
+}
+.lk-btn {
+  font: inherit;
+  font-size: 13px;
+  padding: 7px 12px;
+  border: 1px solid var(--lk-border);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--lk-text);
+  cursor: pointer;
+}
+.lk-btn:hover:not(:disabled) {
+  background: #f4f7fb;
+}
+.lk-btn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+.lk-primary {
+  background: linear-gradient(180deg, var(--lk-accent-2), var(--lk-accent));
+  border-color: #2a5fd0;
+  color: #fff;
+  font-weight: 600;
+  padding: 10px 14px;
+  box-shadow: 0 2px 8px rgba(47, 111, 237, 0.35);
+}
+.lk-primary:hover:not(:disabled) {
+  background: linear-gradient(180deg, #5c97ff, #3a78f2);
+}
+.lk-danger {
+  color: var(--lk-danger);
+}
+/* aviso de vencimento */
+.lk-banner {
+  position: fixed;
+  z-index: 1000;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  max-width: min(760px, calc(100% - 32px));
+  padding: 9px 12px 9px 16px;
+  background: #fff8e1;
+  border: 1px solid #f5c542;
+  color: #6b4e00;
+  border-radius: 12px;
+  box-shadow: 0 4px 14px rgba(16, 24, 40, 0.12);
+  font: 600 13px Inter, 'Segoe UI', system-ui, sans-serif;
+}
+.lk-banner.lk-urgent {
+  background: #fff1f0;
+  border-color: #ff8787;
+  color: #a61e1e;
+}
+.lk-banner button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  color: inherit;
+}
+/* janela / painel */
+.lk-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(15, 23, 36, 0.45);
+  font-family: Inter, 'Segoe UI', system-ui, sans-serif;
+  color: var(--lk-text);
+}
+.lk-panel {
+  width: min(1100px, 100%);
+  max-height: calc(100vh - 32px);
+  overflow: auto;
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 24px 60px rgba(16, 24, 40, 0.28);
+}
+.lk-panel header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 16px 20px;
+  border-bottom: 1px solid #eef1f5;
+}
+.lk-panel header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+.lk-body {
+  padding: 16px 20px 20px;
+  font-size: 13px;
+}
+.lk-unlock {
+  display: grid;
+  gap: 10px;
+  max-width: 380px;
+  margin: 20px auto;
+  text-align: center;
+}
+.lk-stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.lk-stats div {
+  display: grid;
+  background: #f7f9fc;
+  border: 1px solid #e6eaf0;
+  border-radius: 12px;
+  padding: 10px 14px;
+}
+.lk-stats b {
+  font-size: 22px;
+}
+.lk-stats span {
+  color: var(--lk-muted);
+  font-size: 12px;
+}
+.lk-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.lk-table th {
+  text-align: left;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--lk-muted);
+  padding: 6px 8px;
+  border-bottom: 1px solid #e6eaf0;
+}
+.lk-table td {
+  padding: 8px;
+  border-bottom: 1px solid #f1f3f6;
+  vertical-align: middle;
+}
+.lk-table td small {
+  display: block;
+  color: var(--lk-muted);
+  font-size: 11px;
+}
+.lk-table tr.lk-off td {
+  opacity: 0.6;
+}
+.lk-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.lk-actions .lk-btn,
+.lk-actions select {
+  padding: 4px 8px;
+  font-size: 12px;
+}
+.lk-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.lk-badge-ok {
+  background: #e6fcf5;
+  color: #087f5b;
+}
+.lk-badge-warn {
+  background: #fff4e6;
+  color: #d9480f;
+}
+.lk-badge-off {
+  background: #fff0f0;
+  color: #c92a2a;
+}
+.lk-badge-owner {
+  background: #eaf1ff;
+  color: #1849b0;
+}
+.lk-new {
+  margin-top: 16px;
+  border: 1px solid #e6eaf0;
+  border-radius: 12px;
+  padding: 12px;
+}
+.lk-new h3 {
+  margin: 0 0 10px;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--lk-muted);
+}
+.lk-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.lk-grid .lk-wide {
+  grid-column: span 4;
+}
+.lk-pass {
+  display: flex;
+  gap: 4px;
+}
+.lk-pass input {
+  flex: 1;
+  min-width: 0;
+}
+.lk-hint {
+  color: var(--lk-muted);
+  font-size: 12px;
+}
+@media (max-width: 760px) {
+  .lk-stats,
+  .lk-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+  .lk-grid .lk-wide {
+    grid-column: span 2;
+  }
+}
