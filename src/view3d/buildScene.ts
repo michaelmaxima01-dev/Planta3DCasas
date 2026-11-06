@@ -21,6 +21,8 @@ import {
   unitCylinder,
   unitSphere,
   wallMaterialFor,
+  fenceFinishMaterial,
+  isFinishablePart,
   slabMaterialFor,
 } from './materials';
 
@@ -147,7 +149,7 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boo
   walls.name = 'Paredes';
   for (const g of Object.values(geoms)) {
     for (const p of wallPrisms(g, byWall[g.id] ?? [])) {
-      const m = new THREE.Mesh(prismGeometry(p.polygon, p.bottom, p.top), wallMaterialFor(plan.walls[g.id]?.color ?? opts.colors?.wall));
+      const m = new THREE.Mesh(prismGeometry(p.polygon, p.bottom, p.top), wallMaterialFor(plan.walls[g.id]?.color ?? opts.colors?.wall, plan.walls[g.id]?.finish ?? opts.colors?.wallFinish));
       m.castShadow = true;
       m.receiveShadow = true;
       m.name = `Parede ${g.id}`;
@@ -193,7 +195,8 @@ export function buildHouseGroup(plan: Plan, opts: { lights?: boolean; slab?: boo
     grp.position.set(f.x, f.elevation, f.y);
     grp.rotation.y = -f.rotation;
     for (const p of item.parts(f.width, f.depth, f.height)) {
-      const m = new THREE.Mesh(p.shape === 'box' ? unitBox : p.shape === 'cyl' ? unitCylinder : unitSphere, partMaterial(p.color, p.material, false));
+      const fin = f.finish && item.fence && p.shape === 'box' && isFinishablePart(p) ? fenceFinishMaterial(f.finish, f.finishColor, p.sx, p.sy) : null;
+      const m = new THREE.Mesh(p.shape === 'box' ? unitBox : p.shape === 'cyl' ? unitCylinder : unitSphere, fin ?? partMaterial(p.color, p.material, false));
       m.position.set(p.x, p.y, p.z);
       m.rotation.y = -(p.ry ?? 0);
       m.scale.set(p.sx, p.sy, p.sz);

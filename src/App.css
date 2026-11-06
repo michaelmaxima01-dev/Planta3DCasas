@@ -1904,3 +1904,48 @@ input[type='checkbox'] {
   height: auto;
   min-width: 0;
 }
+
+/* acabamentos (texturas) */
+.finish-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 5px;
+}
+.finish-grid button {
+  display: grid;
+  gap: 2px;
+  padding: 3px;
+  border-radius: 8px;
+  box-shadow: none;
+  min-width: 0;
+}
+.finish-grid button img {
+  width: 100%;
+  aspect-ratio: 1;
+  border-radius: 5px;
+  display: block;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+.finish-grid button span {
+  font-size: 9.5px;
+  line-height: 1.15;
+  color: #4a5765;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.finish-grid button.active {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  background: var(--accent-soft);
+}
+.finish-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 3px 0 6px;
+}
+.finish-row small {
+  color: var(--muted);
+  font-size: 11px;
+}

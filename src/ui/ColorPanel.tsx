@@ -2,9 +2,9 @@ import { useState } from 'react';
 import { detectRooms } from '../geometry/rooms';
 import { FLOOR_FINISHES } from '../model/finishes';
 import { setRoomLabel } from '../model/ops';
-import type { ProjectColors } from '../model/types';
 import { usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
+import { FinishPicker } from './FinishPicker';
 
 export const WALL_COLORS = [
   { c: '#f1ede6', n: 'Branco gelo' },
@@ -61,7 +61,7 @@ export function ColorPanel() {
   const colors = usePlan((s) => s.building.colors) ?? {};
   const updateBuilding = usePlan((s) => s.updateBuilding);
   const [open, setOpen] = useState(false);
-  const set = (k: keyof ProjectColors, c: string | undefined) =>
+  const set = (k: 'wall' | 'ceiling' | 'roof', c: string | undefined) =>
     updateBuilding((b) => {
       b.colors = { ...b.colors, [k]: c };
       if (!c) delete b.colors[k];
@@ -79,7 +79,14 @@ export function ColorPanel() {
       </button>
       {open && (
         <>
-          <h4>Paredes</h4>
+          <h4>Acabamento das paredes</h4>
+          <FinishPicker
+            value={colors.wallFinish}
+            color={colors.wall}
+            onPick={(f) => updateBuilding((b) => void (b.colors = { ...b.colors, wallFinish: f }))}
+            onReset={() => updateBuilding((b) => void (b.colors && delete b.colors.wallFinish))}
+          />
+          <h4>Cor das paredes</h4>
           <Swatches list={WALL_COLORS} value={colors.wall} onPick={(c) => set('wall', c)} onReset={() => set('wall', undefined)} />
           <h4>Teto e lajes</h4>
           <Swatches list={CEILING_COLORS} value={colors.ceiling} onPick={(c) => set('ceiling', c)} onReset={() => set('ceiling', undefined)} />
@@ -87,7 +94,7 @@ export function ColorPanel() {
           <Swatches list={ROOF_COLORS} value={colors.roof} onPick={(c) => set('roof', c)} onReset={() => set('roof', undefined)} />
           <h4>Piso (todos os cômodos)</h4>
           <Swatches list={FLOOR_FINISHES.map((f) => ({ c: f.c, n: f.n }))} onPick={allFloors} />
-          <p className="hint">Para uma parede ou um cômodo específico, selecione-o na planta e escolha a cor no painel da direita.</p>
+          <p className="hint">A cor tinge pinturas, texturas e cerâmicas; tijolinho, madeira, pedra, concreto e mármore têm cor própria. Para uma parede, muro ou cômodo específico, selecione-o na planta e escolha a cor no painel da direita.</p>
         </>
       )}
     </section>

@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import type { PartMaterial } from '../catalog/catalog';
+import { type WallFinish, wallFinishDef } from '../model/wallFinish';
+import { finishTexture } from './textures';
 
 /** Plano de corte das paredes no modo "paredes baixas": mantém tudo com y <= 1,2 m. */
 export const CUT_PLANE = new THREE.Plane(new THREE.Vector3(0, -1, 0), 1.2);
@@ -24,14 +26,18 @@ const cutMaterials = [wallMaterial, wallSelectedMaterial, frameMaterial, doorLea
 let cutOn = false;
 const wallCache = new Map<string, THREE.MeshStandardMaterial>();
 
-/** Material de parede por cor (respeita o corte de "paredes baixas"). */
-export function wallMaterialFor(color: string | undefined): THREE.Material {
-  if (!color) return wallMaterial;
-  let m = wallCache.get(color);
+/** Material de parede por cor e acabamento (respeita o corte de "paredes baixas"). */
+export function wallMaterialFor(color: string | undefined, finish?: WallFinish): THREE.Material {
+  if (!color && (!finish || finish === 'pintura')) return wallMaterial;
+  const def = wallFinishDef(finish);
+  const tint = def.tint ? (color ?? def.color) : '#ffffff';
+  const key = `${tint}|${def.key}`;
+  let m = wallCache.get(key);
   if (!m) {
-    m = new THREE.MeshStandardMaterial({ color, roughness: 0.92 });
+    const map = finishTexture(def.key);
+    m = new THREE.MeshStandardMaterial({ color: tint, roughness: def.roughness, map, bumpMap: def.bump ? map : null, bumpScale: def.bump * 20 });
     cutMaterials.push(m);
-    wallCache.set(color, m);
+    wallCache.set(key, m);
     if (cutOn) {
       m.clippingPlanes = [CUT_PLANE];
       m.side = THREE.DoubleSide;
@@ -113,3 +119,38 @@ export function floorMaterial(color: string, selected: boolean): THREE.Material 
 export const unitBox = new THREE.BoxGeometry(1, 1, 1);
 export const unitCylinder = new THREE.CylinderGeometry(0.5, 0.5, 1, 28);
 export const unitSphere = new THREE.SphereGeometry(0.5, 24, 16);
+
+const fenceCache = new Map<string, THREE.Material>();
+/**
+ * Material com textura para as faces de muro (caixas unitárias escaladas): a textura é
+ * repetida conforme o tamanho da peça, para manter 1 m de textura = 1 m de muro.
+ */
+export function fenceFinishMaterial(finish: WallFinish, color: string | undefined, sx: number, sy: number, selected = false): THREE.Material | null {
+  const def = wallFinishDef(finish);
+  const base = finishTexture(def.key);
+  const tint = def.tint ? (color ?? def.color) : '#ffffff';
+  const key = `${def.key}|${tint}|${sx.toFixed(2)}|${sy.toFixed(2)}|${selected ? 1 : 0}`;
+  let m = fenceCache.get(key);
+  if (!m) {
+    let map: THREE.Texture | null = null;
+    if (base) {
+      map = base.clone();
+      map.repeat.set(Math.max(0.05, sx), Math.max(0.05, sy));
+      map.needsUpdate = true;
+    }
+    m = new THREE.MeshStandardMaterial({
+      color: tint,
+      roughness: def.roughness,
+      map,
+      bumpMap: def.bump ? map : null,
+      bumpScale: def.bump * 20,
+      emissive: selected ? new THREE.Color('#2f7cf6') : new THREE.Color('#000000'),
+      emissiveIntensity: selected ? 0.35 : 0,
+    });
+    fenceCache.set(key, m);
+  }
+  return m;
+}
+
+/** Peça de muro que recebe o acabamento: alvenaria (cerâmica) com altura relevante. */
+export const isFinishablePart = (p: { material?: PartMaterial; sy: number; sx: number }) => p.material === 'ceramic' && p.sy > 0.25 && p.sx > 0.12;

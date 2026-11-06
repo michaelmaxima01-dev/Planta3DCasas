@@ -18,11 +18,15 @@ export interface Wall {
   height: number;
   /** Cor própria desta parede (senão usa a cor padrão do projeto). */
   color?: string;
+  /** Acabamento próprio desta parede (pintura, tijolinho, madeira…). */
+  finish?: import('./wallFinish').WallFinish;
 }
 
 /** Paleta de cores do projeto (3D e imagens do PDF). */
 export interface ProjectColors {
   wall?: string;
+  /** Acabamento padrão das paredes. */
+  wallFinish?: import('./wallFinish').WallFinish;
   ceiling?: string;
   roof?: string;
 }
@@ -62,6 +66,9 @@ export interface FurnitureItem {
   depth: number;
   height: number;
   elevation: number;
+  /** Muros/cercas: acabamento (textura) e cor do acabamento. */
+  finish?: import('./wallFinish').WallFinish;
+  finishColor?: string;
 }
 
 /**
@@ -90,6 +97,12 @@ export interface ProjectMeta {
   engineerRegistry?: string;
   /** Número da ART. */
   art?: string;
+  /** CPF/CNPJ do proprietário (bloco de assinaturas). */
+  clientDoc?: string;
+  /** RRT/ART do projeto de arquitetura. */
+  authorDoc?: string;
+  /** Cidade/UF para "local e data" das assinaturas. */
+  city?: string;
 }
 
 /** Marcação livre na planta (rabisco, seta, texto ou medida). */

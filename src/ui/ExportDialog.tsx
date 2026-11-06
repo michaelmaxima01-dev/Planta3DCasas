@@ -25,6 +25,9 @@ const META_FIELDS: { key: keyof ProjectMeta; label: string; placeholder: string 
   { key: 'address', label: 'Endereço da obra', placeholder: 'Rua, número - cidade/UF' },
   { key: 'author', label: 'Responsável técnico', placeholder: 'Arq. Nome Sobrenome' },
   { key: 'registry', label: 'Registro (CAU/CREA)', placeholder: 'CAU A00000-0' },
+  { key: 'authorDoc', label: 'RRT/ART do projeto', placeholder: 'RRT nº 0000000' },
+  { key: 'clientDoc', label: 'CPF/CNPJ do proprietário', placeholder: '000.000.000-00' },
+  { key: 'city', label: 'Cidade/UF (local das assinaturas)', placeholder: 'Belo Horizonte/MG' },
   { key: 'notes', label: 'Observações', placeholder: 'Opcional' },
 ];
 

@@ -10,6 +10,9 @@ import { dist } from '../geometry/vec';
 import { CATALOG_BY_ID } from '../catalog/catalog';
 import { detectRooms } from '../geometry/rooms';
 import { ceilingDef } from '../model/ceiling';
+import { finishName } from '../model/finishes';
+import { styleName } from '../model/openings';
+import { type WallFinish, wallFinishDef } from '../model/wallFinish';
 import type { Building } from '../model/types';
 import type { StructureResult } from './analyze';
 
@@ -21,7 +24,7 @@ export interface QtyRow {
   note?: string;
 }
 
-export type StageKey = 'fundacao' | 'estrutura' | 'alvenaria' | 'telhado' | 'muros';
+export type StageKey = 'fundacao' | 'estrutura' | 'alvenaria' | 'telhado' | 'acabamentos' | 'muros';
 
 export interface Stage {
   key: StageKey;
@@ -56,6 +59,7 @@ const KG_M: Record<string, number> = { '5': 0.154, '6,3': 0.245, '8': 0.395, '10
 const LOSS = { concrete: 1.05, steel: 1.1, mortar: 1.1, block: 1.05 };
 const TRELICADA_CONCRETE: Record<number, number> = { 12: 0.055, 16: 0.065, 20: 0.075, 25: 0.09 };
 
+const f2 = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const f1 = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 function parseBars(s: string): { n: number; d: string } | null {
@@ -245,24 +249,6 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
   A.row('Chapisco e reboco (2 faces, 2 cm)', 'm³', plaster);
   A.row('Contrapiso 4 cm (traço 1:4)', 'm³', screed, `${f1(floorArea)} m² de piso`);
   const blockRow: QtyRow[] = [{ group: A.group, item: 'Blocos cerâmicos 14×19×29', unit: 'un', qty: Math.ceil(blocks) }];
-  // forro (por andar)
-  const ceilMat = new Map<string, QtyRow>();
-  for (const l of b.levels) {
-    if (!l.ceiling) continue;
-    const def = ceilingDef(l.ceiling.type);
-    const area = detectRooms(l.plan).reduce((acc, rm) => acc + rm.area, 0);
-    if (area <= 0) continue;
-    A.row(`Forro: ${def.name} (${l.name})`, 'm²', area);
-    for (const m of def.materials) {
-      const k = `${m.item}|${m.unit}`;
-      const q = area * m.perM2 * 1.05;
-      const prev = ceilMat.get(k);
-      if (prev) prev.qty += q;
-      else ceilMat.set(k, { group: A.group, item: m.item, unit: m.unit, qty: q });
-    }
-  }
-  blockRow.push(...ceilMat.values());
-
   // ---------- telhado ----------
   const roofRows: QtyRow[] = [];
   let wood = 0;
@@ -275,11 +261,108 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     if (/Telhas|Shingle|Chapas OSB|Calhas|Cumeeiras/.test(e.name)) roofRows.push({ group: T.group, item: e.name, unit: e.unit, qty: e.qty });
   }
 
+  // ---------- acabamentos ----------
+  const K = new Acc('Acabamentos');
+  const kMat = new Map<string, QtyRow>();
+  const addMat = (item: string, unit: string, qty: number) => {
+    const k = `${item}|${unit}`;
+    const prev = kMat.get(k);
+    if (prev) prev.qty += qty;
+    else kMat.set(k, { group: K.group, item, unit, qty });
+  };
+  const roundUnits = (r: QtyRow) => (r.unit === 'un' || r.unit === 'sc' ? { ...r, qty: Math.ceil(r.qty) } : r);
+  // paredes: as duas faces, descontando portas e janelas, por acabamento
+  const byFinish = new Map<string, number>();
+  for (const l of b.levels) {
+    for (const w of Object.values(l.plan.walls)) {
+      const L = dist(l.plan.nodes[w.a], l.plan.nodes[w.b]);
+      const holes = Object.values(l.plan.openings)
+        .filter((o) => o.wallId === w.id)
+        .reduce((acc, o) => acc + o.width * Math.min(o.height, w.height - o.sill), 0);
+      const area = Math.max(0, L * w.height - holes) * 2;
+      const fk = w.finish ?? b.colors?.wallFinish ?? 'pintura';
+      byFinish.set(fk, (byFinish.get(fk) ?? 0) + area);
+    }
+  }
+  // teto pintado onde não há forro (cômodos de cada andar)
+  let ceilingPaint = 0;
+  const floorBy = new Map<string, number>();
+  let skirting = 0;
+  for (const l of b.levels) {
+    const rooms = detectRooms(l.plan);
+    const area = rooms.reduce((acc, rm) => acc + rm.area, 0);
+    if (l.ceiling) {
+      const def = ceilingDef(l.ceiling.type);
+      if (area > 0) {
+        K.row(`Forro: ${def.name} (${l.name})`, 'm²', area);
+        for (const m of def.materials) addMat(m.item, m.unit, area * m.perM2 * 1.05);
+      }
+    } else ceilingPaint += area;
+    for (const rm of rooms) {
+      const name = finishName(rm.floorColor);
+      floorBy.set(name, (floorBy.get(name) ?? 0) + rm.area);
+      skirting += rm.perimeter;
+    }
+    // descontar vãos de porta do rodapé
+    skirting -= Object.values(l.plan.openings).filter((o) => o.kind === 'door').reduce((acc, o) => acc + o.width * 2, 0);
+  }
+  for (const [fk, area] of byFinish) {
+    if (area <= 0) continue;
+    const def = wallFinishDef(fk as WallFinish);
+    K.row(`Paredes: ${def.name} (2 faces)`, 'm²', area);
+    for (const m of def.materials) addMat(m.item, m.unit, area * m.perM2);
+  }
+  if (ceilingPaint > 0) {
+    K.row('Teto: pintura (cômodos sem forro)', 'm²', ceilingPaint);
+    for (const m of wallFinishDef('pintura').materials) addMat(m.item, m.unit, ceilingPaint * m.perM2);
+  }
+  for (const [name, area] of floorBy) {
+    if (area <= 0) continue;
+    K.row(`Piso: ${name}`, 'm²', area);
+    if (/madeira/i.test(name)) {
+      addMat('Piso vinílico / laminado (madeira)', 'm²', area * 1.1);
+      addMat('Manta acústica para piso', 'm²', area * 1.05);
+    } else if (/porcelanato/i.test(name)) {
+      addMat('Porcelanato de piso', 'm²', area * 1.1);
+      addMat('Argamassa colante AC-III (sacos 20 kg)', 'sc', (area * 5) / 20);
+      addMat('Rejunte (kg)', 'kg', area * 0.3);
+    } else if (/cimento/i.test(name)) {
+      addMat('Cimento queimado (cimento + pó xadrez)', 'm²', area * 1.05);
+    } else {
+      addMat('Piso cerâmico', 'm²', area * 1.1);
+      addMat('Argamassa colante AC-I (sacos 20 kg)', 'sc', (area * 4) / 20);
+      addMat('Rejunte (kg)', 'kg', area * 0.4);
+    }
+  }
+  if (skirting > 0) {
+    K.row('Rodapés (perímetro dos cômodos, sem os vãos de porta)', 'm', skirting);
+    addMat('Rodapé', 'm', skirting * 1.05);
+  }
+  // esquadrias por tipo (detalhe por medida), peitoris e soleiras
+  const esq = new Map<string, number>();
+  let sills = 0;
+  let thresholds = 0;
+  for (const l of b.levels) {
+    for (const o of Object.values(l.plan.openings)) {
+      const name = styleName(o);
+      const k = `${name} (${f2(o.width)} × ${f2(o.height)} m)`;
+      esq.set(k, (esq.get(k) ?? 0) + 1);
+      addMat(`Esquadria: ${name}`, 'un', 1);
+      if (o.kind === 'window' && o.sill > 0.05) sills += o.width + 0.06;
+      else thresholds += o.width;
+    }
+  }
+  for (const [k, n] of esq) K.row(k, 'un', n);
+  if (sills > 0) addMat('Peitoris de granito', 'm', sills);
+  if (thresholds > 0) addMat('Soleiras de granito', 'm', thresholds);
+  const kExtra = [...kMat.values()].map(roundUnits);
+
   // ---------- muros, muretas e cercas ----------
   const M = new Acc('Muros e cercas');
   const mExtra: QtyRow[] = [];
   const mm = { block: 0, brick: 0, gradil: 0, mesh: 0, wood: 0, wire: 0, glass: 0, stone: 0, plates: 0, posts: 0, plants: 0, paint: 0, gates: 0 };
   let mLen = 0;
+  const muroFinish = new Map<string, QtyRow>();
   for (const f of Object.values(b.levels[0]?.plan.furniture ?? {})) {
     const c = CATALOG_BY_ID[f.catalogId];
     if (c?.gate) {
@@ -290,13 +373,23 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     if (!c?.fence || !c.fenceQty) continue;
     const L = f.width;
     const H = f.height;
+    if (f.finish && f.finish !== 'pintura') {
+      const def = wallFinishDef(f.finish);
+      const area = L * H * 2;
+      for (const m of def.materials) {
+        const k = `${m.item}|${m.unit}`;
+        const prev = muroFinish.get(k);
+        if (prev) prev.qty += area * m.perM2;
+        else muroFinish.set(k, { group: 'Muros e cercas', item: m.item, unit: m.unit, qty: area * m.perM2 });
+      }
+    }
     mLen += L;
     const masonry = (h: number, kind: 'block' | 'brick') => {
       const area = L * h;
       if (kind === 'block') mm.block += area;
       else mm.brick += area;
       M.mortar += area * 0.013 * LOSS.mortar + (kind === 'block' ? area * 2 * 0.02 * LOSS.mortar : 0);
-      if (kind === 'block') mm.paint += area * 2;
+      if (kind === 'block' && (!f.finish || f.finish === 'pintura')) mm.paint += area * 2;
       // pilaretes a cada 3 m e cinta/baldrame corrido 15×30
       const piers = Math.ceil(L / 3) + 1;
       M.concrete += piers * 0.15 * 0.15 * h + L * 0.15 * 0.3;
@@ -368,6 +461,7 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     if (mm.wire > 0) mExtra.push({ group: M.group, item: 'Arame liso/farpado', unit: 'm', qty: mm.wire * 1.1 });
     if (mm.plants > 0) mExtra.push({ group: M.group, item: 'Mudas para cerca viva', unit: 'un', qty: mm.plants });
     if (mm.gates > 0) mExtra.push({ group: M.group, item: 'Portões', unit: 'un', qty: mm.gates });
+    for (const r of muroFinish.values()) mExtra.push(r.unit === 'un' || r.unit === 'sc' ? { ...r, qty: Math.ceil(r.qty) } : r);
     M.row('Comprimento total de muros e cercas', 'm', mLen, area > 0 ? `${f1(area)} m² de alvenaria` : undefined);
   }
 
@@ -390,6 +484,7 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     { key: 'alvenaria', name: 'Alvenaria', rows: A.rows, summary: A.summary(s.fck, blockRow) },
     { key: 'telhado', name: 'Telhado', rows: T.rows, summary: roofRows },
   ];
+  if (K.rows.length) stages.push({ key: 'acabamentos', name: 'Acabamentos', rows: K.rows, summary: kExtra });
   if (M.rows.length) {
     for (const [d, kg] of [...M.steel.entries()]) M.row(`Aço Ø${d} mm (pilaretes e cintas)`, 'kg', kg * LOSS.steel);
     stages.push({ key: 'muros', name: 'Muros e cercas', rows: M.rows, summary: M.summary(s.fck, mExtra) });
@@ -409,6 +504,7 @@ export function buildQuantities(b: Building, r: StructureResult): Quantities {
     { group: 'Total', item: 'Escavação', unit: 'm³', qty: excavation },
     ...roofRows.map((x) => ({ ...x, group: 'Total' })),
     ...mExtra.map((x) => ({ ...x, group: 'Total' })),
+    ...kExtra.map((x) => ({ ...x, group: 'Total' })),
   ]);
   summary[0] = { ...summary[0], item: `Concreto estrutural C${s.fck} (fundação ${f1(F.concrete * LOSS.concrete)} + estrutura ${f1(E.concrete * LOSS.concrete)}${M.concrete > 0 ? ` + muros ${f1(M.concrete * LOSS.concrete)}` : ''} m³)` };
 

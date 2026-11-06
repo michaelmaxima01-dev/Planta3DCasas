@@ -13,6 +13,8 @@ import { selectPlan, usePlan } from '../store/planStore';
 import { useUI } from '../store/uiStore';
 import { NumberField, TextField } from './Fields';
 import { WALL_COLORS } from './ColorPanel';
+import { FinishPicker } from './FinishPicker';
+import { wallFinishDef } from '../model/wallFinish';
 import { fmtArea, fmtMeters } from './format';
 
 const FLOOR_COLORS = FLOOR_FINISHES;
@@ -42,6 +44,14 @@ export function PropertiesPanel() {
             <NumberField label="Comprimento" value={L} min={0.1} max={100} onCommit={(v) => update((d) => setWallLength(d, w.id, v))} />
             <NumberField label="Espessura" value={w.thickness} min={0.05} max={1} onCommit={(v) => update((d) => void (d.walls[w.id].thickness = v))} />
             <NumberField label="Altura" value={w.height} min={0.5} max={10} onCommit={(v) => update((d) => void (d.walls[w.id].height = v))} />
+            <h4>Acabamento desta parede</h4>
+            <FinishPicker
+              value={w.finish}
+              color={w.color}
+              onPick={(f) => update((d) => void (d.walls[w.id].finish = f))}
+              onReset={() => update((d) => void delete d.walls[w.id].finish)}
+              resetTitle="Usar o acabamento padrão do projeto"
+            />
             <h4>Cor desta parede</h4>
             <div className="swatches palette">
               {WALL_COLORS.map((x) => (
@@ -141,6 +151,22 @@ export function PropertiesPanel() {
                   ))}
                 </select>
               </label>
+            )}
+            {item?.fence && (
+              <>
+                <h4>Acabamento do muro</h4>
+                <FinishPicker value={f.finish} color={f.finishColor} onPick={(fin) => set({ finish: fin })} onReset={() => update((d) => void delete d.furniture[f.id].finish)} resetTitle="Voltar ao visual original do muro" />
+                {f.finish && wallFinishDef(f.finish).tint && (
+                  <div className="swatches palette">
+                    {WALL_COLORS.map((x) => (
+                      <button key={x.c} title={x.n} className={f.finishColor === x.c ? 'active' : ''} style={{ background: x.c }} onClick={() => set({ finishColor: x.c })} />
+                    ))}
+                    <label className="swatch-custom" title="Outra cor">
+                      <input type="color" value={f.finishColor ?? '#f1ede6'} onChange={(e) => set({ finishColor: e.target.value })} />
+                    </label>
+                  </div>
+                )}
+              </>
             )}
             <NumberField label={item?.fence ? 'Comprimento' : 'Largura'} value={f.width} min={0.05} max={item?.fence ? 500 : 20} onCommit={(v) => set({ width: v })} />
             <NumberField label="Profundidade" value={f.depth} min={0.05} max={20} onCommit={(v) => set({ depth: v })} />

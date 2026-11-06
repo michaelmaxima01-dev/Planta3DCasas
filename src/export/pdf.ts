@@ -156,7 +156,7 @@ export class Doc {
       p.setDrawColor(INK);
       p.setLineWidth(0.35);
       p.line(x0, y0, x0 + w, y0);
-      const cols = [0.3, 0.22, 0.2, 0.28].map((f) => f * w);
+      const cols = [0.26, 0.17, 0.17, 0.16, 0.24].map((f) => f * w);
       let x = x0;
       const cell = (cw: number, label: string, value: string, sub?: string, bold = false) => {
         this.text(label.toUpperCase(), x + 3, y0 + 5, 1.6, { color: MUTED });
@@ -170,10 +170,20 @@ export class Doc {
       };
       cell(cols[0], 'Projeto', m.title || DEFAULT_META.title, m.address, true);
       cell(cols[1], 'Cliente', m.client, m.notes);
-      cell(cols[2], 'Responsável técnico', m.author, m.registry);
+      cell(cols[2], 'Responsável técnico', m.author, [m.registry, m.authorDoc].filter(Boolean).join(' • '));
+      // assinatura do responsável técnico em todas as folhas
+      this.text('ASSINATURA DO RESPONSÁVEL', x + 3, y0 + 5, 1.6, { color: MUTED });
+      p.setDrawColor('#9aa3ad');
+      p.setLineWidth(0.2);
+      p.line(x + 4, y0 + h * 0.7, x + cols[3] - 4, y0 + h * 0.7);
+      this.text(m.author || 'Responsável técnico', x + cols[3] / 2, y0 + h * 0.84, 1.7, { color: MUTED, align: 'center', maxWidth: cols[3] - 6 });
+      x += cols[3];
+      p.setDrawColor(INK);
+      p.setLineWidth(0.25);
+      p.line(x, y0, x, y0 + h);
       // última coluna: folha, escala, data e numeração
       this.text('FOLHA', x + 3, y0 + 5, 1.6, { color: MUTED });
-      this.text(sheet.title, x + 3, y0 + h * 0.4, 2.8, { bold: true, maxWidth: cols[3] - 6 });
+      this.text(sheet.title, x + 3, y0 + h * 0.4, 2.8, { bold: true, maxWidth: cols[4] - 6 });
       this.text(`Escala: ${sheet.scale ?? 'indicada'}`, x + 3, y0 + h * 0.68, 2, { color: MUTED });
       this.text(`Data: ${date}`, x + 3, y0 + h * 0.86, 2, { color: MUTED });
       this.text(`${String(i + 1).padStart(2, '0')}/${String(total).padStart(2, '0')}`, x0 + w - 4, y0 + h * 0.62, 5, { bold: true, align: 'right' });
@@ -423,7 +433,37 @@ function coverSheet(doc: Doc, sch: ProjectSchedule, o: PdfOptions, images: PdfIm
     y += 9;
   }
   if (o.meta.notes) doc.text(o.meta.notes, a.x + 4, Math.min(y + 8, a.y + a.h - 6), 2.2, { color: MUTED, maxWidth: left - 8 });
-  if (images.cover) doc.image(images.cover, { x: a.x + left, y: a.y, w: a.w - left, h: a.h }, 1.6);
+  const sigH = 44;
+  if (images.cover) doc.image(images.cover, { x: a.x + left, y: a.y, w: a.w - left, h: a.h - sigH - 4 }, 1.6);
+  signatureBlock(doc, o.meta, { x: a.x + left, y: a.y + a.h - sigH, w: a.w - left, h: sigH });
+}
+
+/** Bloco de assinaturas: proprietário, responsável pelo projeto e responsável pela estrutura/execução. */
+export function signatureBlock(doc: Doc, m: ProjectMeta, b: Box) {
+  const p = doc.pdf;
+  p.setFillColor('#f7f9fc');
+  p.setDrawColor(LINE);
+  p.setLineWidth(0.25);
+  p.roundedRect(b.x, b.y, b.w, b.h, 2, 2, 'FD');
+  doc.text('ASSINATURAS', b.x + 4, b.y + 5, 1.9, { bold: true, color: MUTED });
+  const local = `${m.city || '______________________'}, ____ de ______________ de ${new Date().getFullYear()}`;
+  doc.text(local, b.x + b.w - 4, b.y + 5, 1.9, { color: MUTED, align: 'right' });
+  const cols: { role: string; name: string; lines: string[] }[] = [
+    { role: 'Proprietário(a)', name: m.client || '', lines: [m.clientDoc ? `CPF/CNPJ ${m.clientDoc}` : 'CPF/CNPJ'] },
+    { role: 'Responsável técnico pelo projeto', name: m.author || '', lines: [m.registry || 'CAU/CREA', m.authorDoc || 'RRT/ART'] },
+    { role: 'Responsável técnico pela estrutura / execução', name: m.engineer || '', lines: [m.engineerRegistry ? `CREA ${m.engineerRegistry}` : 'CREA', m.art ? `ART ${m.art}` : 'ART'] },
+  ];
+  const cw = (b.w - 8) / 3;
+  cols.forEach((c, i) => {
+    const x = b.x + 4 + i * cw;
+    const ly = b.y + b.h - 17;
+    p.setDrawColor('#5b6570');
+    p.setLineWidth(0.25);
+    p.line(x + 4, ly, x + cw - 6, ly);
+    doc.text(c.name || ' ', x + cw / 2 - 1, ly + 4, 2.3, { bold: true, align: 'center', maxWidth: cw - 8 });
+    doc.text(c.role, x + cw / 2 - 1, ly + 8, 1.8, { align: 'center', color: MUTED, maxWidth: cw - 8 });
+    doc.text(c.lines.join('  •  '), x + cw / 2 - 1, ly + 12, 1.7, { align: 'center', color: MUTED, maxWidth: cw - 8 });
+  });
 }
 
 function planSheet(doc: Doc, plan: Plan, sch: ProjectSchedule, o: PdfOptions, title: string) {

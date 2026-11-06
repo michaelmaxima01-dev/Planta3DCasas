@@ -117,14 +117,14 @@ describe('telhados e sustentações novas', () => {
     }
   });
 
-  it('forro entra no quantitativo de alvenaria', async () => {
+  it('forro entra no quantitativo de acabamentos', async () => {
     const { buildExampleBuilding } = await import('../model/building');
     const { analyzeStructure } = await import('../structure/analyze');
     const { buildQuantities } = await import('../structure/quantities');
     const b = buildExampleBuilding();
     b.levels[1].ceiling = { type: 'gesso' };
     const q = buildQuantities(b, analyzeStructure(b));
-    const A = q.stages.find((s) => s.key === 'alvenaria')!;
+    const A = q.stages.find((s) => s.key === 'acabamentos')!;
     expect(A.rows.some((r) => /Forro: Gesso/.test(r.item))).toBe(true);
     expect(A.summary.find((r) => /Placas de gesso/.test(r.item))!.qty).toBeGreaterThan(50);
   });

@@ -1,4 +1,5 @@
 import { siteSize } from '../model/site';
+import type { WallFinish } from '../model/wallFinish';
 import { ceilingDef, ceilingHeight } from '../model/ceiling';
 import { OrbitControls } from '@react-three/drei';
 import { Canvas, type ThreeEvent, useThree } from '@react-three/fiber';
@@ -28,6 +29,8 @@ import {
   unitCylinder,
   unitSphere,
   wallMaterialFor,
+  fenceFinishMaterial,
+  isFinishablePart,
   slabMaterialFor,
   wallSelectedMaterial,
 } from './materials';
@@ -183,7 +186,7 @@ function LevelContents({ plan, slabs, stairs, selection, select, colors, ceiling
         <Railing key={`rail-${f.id}`} stair={f} />
       ))}
       {Object.values(geoms).map((g) => (
-        <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} color={plan.walls[g.id]?.color ?? colors?.wall} />
+        <Wall3D key={g.id} g={g} openings={openingsByWall[g.id] ?? []} selected={selection?.kind === 'wall' && selection.id === g.id} select={select} color={plan.walls[g.id]?.color ?? colors?.wall} finish={plan.walls[g.id]?.finish ?? colors?.wallFinish} />
       ))}
       {Object.values(plan.openings).map((op) => {
         const g = geoms[op.wallId];
@@ -215,10 +218,10 @@ function CameraFitter({ token, frame }: { token: number; frame: ReturnType<typeo
   return null;
 }
 
-function Wall3D({ g, openings, selected, select, color }: { g: WallGeom; openings: Opening[]; selected: boolean; select: Select; color?: string }) {
+function Wall3D({ g, openings, selected, select, color, finish }: { g: WallGeom; openings: Opening[]; selected: boolean; select: Select; color?: string; finish?: WallFinish }) {
   const geos = useMemo(() => wallPrisms(g, openings).map((p) => prismGeometry(p.polygon, p.bottom, p.top)), [g, openings]);
   useEffect(() => () => geos.forEach((x) => x.dispose()), [geos]);
-  const mat = selected ? wallSelectedMaterial : wallMaterialFor(color);
+  const mat = selected ? wallSelectedMaterial : wallMaterialFor(color, finish);
   return (
     <group onClick={clickHandler(select, { kind: 'wall', id: g.id })}>
       {geos.map((geo, i) => (
@@ -350,7 +353,7 @@ function Furniture3D({ f, selected, select }: { f: FurnitureItem; selected: bool
         <mesh
           key={i}
           geometry={p.shape === 'box' ? unitBox : p.shape === 'cyl' ? unitCylinder : unitSphere}
-          material={partMaterial(p.color, p.material, selected)}
+          material={(f.finish && item.fence && p.shape === 'box' && isFinishablePart(p) && fenceFinishMaterial(f.finish, f.finishColor, p.sx, p.sy, selected)) || partMaterial(p.color, p.material, selected)}
           position={[p.x, p.y, p.z]}
           rotation-y={-(p.ry ?? 0)}
           scale={[p.sx, p.sy, p.sz]}

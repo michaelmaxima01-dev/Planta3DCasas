@@ -32,7 +32,7 @@ describe('quantitativo por etapa', () => {
     b.structure = generateStructure(b);
     autoSize(b);
     const q = buildQuantities(b, analyzeStructure(b));
-    expect(q.stages.map((s) => s.name)).toEqual(['Fundação', 'Estrutura', 'Alvenaria', 'Telhado']);
+    expect(q.stages.map((s) => s.name)).toEqual(['Fundação', 'Estrutura', 'Alvenaria', 'Telhado', 'Acabamentos']);
     const get = (rows: { item: string; qty: number }[], p: string) => rows.find((x) => x.item.startsWith(p))?.qty ?? 0;
     const [F, E, A, T] = q.stages;
     if (process.env.SHOW) for (const st of q.stages) for (const x of st.summary) console.log(st.name, '|', x.item, '|', fmtQty(x));
@@ -45,5 +45,33 @@ describe('quantitativo por etapa', () => {
     expect(Math.abs(cementStages - get(q.summary, 'Cimento'))).toBeLessThanOrEqual(3); // arredondamento de sacos
     const steelStages = get(F.summary, 'Aço') + get(E.summary, 'Aço');
     expect(Math.abs(steelStages - get(q.summary, 'Aço')) / steelStages).toBeLessThan(0.001);
+  });
+});
+
+describe('quantitativo de acabamentos', () => {
+  it('paredes por acabamento, pisos, rodapé, teto, esquadrias e muro com textura', async () => {
+    const { fitSite, wallSite } = await import('../model/site');
+    const b = buildExampleBuilding();
+    const w = Object.values(b.levels[0].plan.walls)[0];
+    w.finish = 'tijolinho';
+    b.colors = { wallFinish: 'grafiato' };
+    b.site = fitSite(b);
+    wallSite(b);
+    const muro = Object.values(b.levels[0].plan.furniture).find((f) => f.catalogId === 'muro_bloco')!;
+    muro.finish = 'pedra';
+    const q = buildQuantities(b, analyzeStructure(b));
+    const K = q.stages.find((s) => s.key === 'acabamentos')!;
+    const row = (re: RegExp) => K.rows.find((r) => re.test(r.item));
+    const mat = (re: RegExp) => K.summary.find((r) => re.test(r.item))?.qty ?? 0;
+    expect(row(/Paredes: Tijolinho/)!.qty).toBeGreaterThan(1);
+    expect(row(/Paredes: Textura grafiato/)!.qty).toBeGreaterThan(50);
+    expect(mat(/Plaquetas de tijolinho/)).toBeGreaterThan(1);
+    expect(mat(/Textura grafiato/)).toBeGreaterThan(1);
+    expect(row(/Piso:/)).toBeTruthy();
+    expect(mat(/Rodapé/)).toBeGreaterThan(20);
+    expect(mat(/Esquadria: Porta de giro/)).toBeGreaterThan(0);
+    expect(row(/Teto: pintura/)).toBeTruthy();
+    const M = q.stages.find((s) => s.key === 'muros')!;
+    expect(M.summary.some((r) => /canjiquinha/.test(r.item))).toBe(true);
   });
 });

@@ -224,3 +224,9 @@ O `.htaccess` incluso ativa compressão e cache. Para forçar HTTPS, descomente 
 
 ### Atualizar o site sem perder os usuários
 Ao subir uma versão nova na Hostinger, **não apague a pasta `api/data`** (é onde ficam as contas). Apague só `assets`, `index.html`, `favicon.svg`, `icons.svg` e `api/auth.php`, envie o zip e extraia substituindo.
+
+## v10.0: texturas, acabamentos no quantitativo e assinaturas
+
+- **Texturas de parede e muro** (procedurais, em escala real): pintura lisa, grafiato, textura rústica, tijolinho aparente, painel de madeira, ripado, pedra (canjiquinha), cerâmica, porcelanato, concreto aparente e mármore. Padrão do projeto em "Cores do projeto", por parede no painel da direita e por trecho de muro. Aparecem no 3D e nas imagens do PDF.
+- **Quantitativo – etapa Acabamentos**: paredes por acabamento (2 faces, descontando vãos) com selador, massa, tinta, texturas, plaquetas, argamassas e rejunte; pisos por tipo com argamassa/rejunte/manta; rodapés; pintura de teto (sem forro); forro; esquadrias por tipo e medida; peitoris e soleiras. Muros com acabamento contam o material do acabamento. Preços de referência no orçamento.
+- **Assinaturas**: bloco na capa (proprietário com CPF/CNPJ, responsável pelo projeto com CAU/CREA e RRT/ART, responsável pela estrutura/execução com CREA e ART, local e data) e coluna de assinatura no carimbo de todas as folhas. Novos campos na janela Exportar.
